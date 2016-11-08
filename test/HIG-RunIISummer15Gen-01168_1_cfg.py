@@ -1,7 +1,7 @@
 # Auto generated configuration file
-# using: 
-# Revision: 1.19 
-# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
+# using:
+# Revision: 1.19
+# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v
 # with command line options: Configuration/GenProduction/python/HIG-RunIISummer15GS-01168-fragment.py --filein file:HIG-RunIIWinter15wmLHE-01035ND.root --fileout file:HIG-RunIISummer15Gen-01168ND.root --mc --eventcontent GENRAW --customise SLHCUpgradeSimulations/Configuration/postLS1Customs.customisePostLS1,Configuration/DataProcessing/Utils.addMonitoring --datatier GEN --conditions MCRUN2_71_V1::All --beamspot Realistic50ns13TeVCollision --step GEN --magField 38T_PostLS1 --python_filename HIG-RunIISummer15Gen-01168_1_cfg.py --no_exec -n 156
 import FWCore.ParameterSet.Config as cms
 
