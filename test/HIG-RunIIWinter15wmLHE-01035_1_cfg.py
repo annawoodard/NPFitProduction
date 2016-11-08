@@ -67,8 +67,8 @@ with open('point.json', 'r') as f:
 process.annotator = cms.EDProducer('WilsonCoefficientAnnotator',
         wilsonCoefficients = cms.vdouble(*info['coefficients']),
         operators = cms.vstring(*[str(x) for x in info['operators']]),
-        point=cms.int32(info['point'])
-
+        point=cms.int32(info['point']),
+        process=cms.string(info['process'])
 )
 
 process.LHEoutput.outputCommands += ['keep *_annotator_*_*']

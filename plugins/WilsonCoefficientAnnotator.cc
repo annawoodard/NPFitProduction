@@ -52,18 +52,21 @@ class WilsonCoefficientAnnotator : public edm::one::EDProducer<edm::BeginRunProd
       std::vector<double> coefficients_;
       std::vector<std::string> operators_;
       int point_;
+      std::string process_;
 };
 
 
 WilsonCoefficientAnnotator::WilsonCoefficientAnnotator(const edm::ParameterSet& iConfig):
   coefficients_(iConfig.getParameter<std::vector<double>>("wilsonCoefficients")),
   operators_(iConfig.getParameter<std::vector<std::string>>("operators")),
-  point_(iConfig.getParameter<int>("point"))
+  point_(iConfig.getParameter<int>("point")),
+  process_(iConfig.getParameter<std::string>("process"))
 {
 
   produces<std::vector<double>, edm::InRun>("wilsonCoefficients");
   produces<std::vector<std::string>, edm::InRun>("operators");
   produces<int, edm::InRun>("point");
+  produces<std::string, edm::InRun>("process");
 
 }
 
@@ -88,10 +91,13 @@ WilsonCoefficientAnnotator::beginRunProduce(edm::Run& run, edm::EventSetup const
    *operators = operators_;
    std::auto_ptr<int> point(new int);
    *point = point_;
+   std::auto_ptr<std::string> process(new std::string);
+   *process = process_;
 
    run.put(coefficients, "wilsonCoefficients");
    run.put(operators, "operators");
    run.put(point, "point");
+   run.put(process, "process");
 }
 
 void

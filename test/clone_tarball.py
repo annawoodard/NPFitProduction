@@ -75,7 +75,8 @@ with tempdir.TempDir() as source:
             json.dump({
                 'operators': args.operators,
                 'coefficients': [points[o][args.point] for o in args.operators],
-                'point': args.point
+                'point': args.point,
+                'process': args.process.split('_')[-1].replace('.dat', '')
             }, f)
 
         subprocess.call(['tar', 'cJpsf', 'gridpack.tar.xz', 'mgbasedir', 'process', 'runcmsgrid.sh', 'point.json'])
