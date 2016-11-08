@@ -22,7 +22,7 @@ args = parser.parse_args()
 with tempdir.TempDir() as source:
     subprocess.call(['tar', 'xaf', args.gridpack, '--directory={0}'.format(source)])
 
-    with open('points.json') as f:
+    with open('linspace_points.json') as f:
         points = json.load(f)
 
     with open(os.path.join(source, args.inparams)) as f:

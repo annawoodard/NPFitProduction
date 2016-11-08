@@ -13,10 +13,10 @@ operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
              'cHd', 'cHu', 'cHud', 'cT', 'cWW', 'cpHQ', 'cu', 'cuB',
              'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
 
-version = 'ttV/3'
+version = 'ttV/4'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
-points = 250
+points = 200
 
 storage = StorageConfiguration(
     output=[
@@ -46,7 +46,7 @@ for operator in operators:
         command='python {base}/clone_tarball.py proc_card_ttW.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttW012j_5f_madgraph_mlmMerging/v1/ttW012j_5f_madgraph_mlmMerging_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
         outputs=['gridpack.tar.xz'],
-        extra_inputs=['points.json', 'proc_card_ttW.dat']
+        extra_inputs=['linspace_points.json', 'proc_card_ttW.dat']
         )
     )
 
@@ -58,7 +58,7 @@ for operator in operators:
         command='python {base}/clone_tarball.py proc_card_ttZ.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
         outputs=['gridpack.tar.xz'],
-        extra_inputs=['points.json', 'proc_card_ttZ.dat']
+        extra_inputs=['linspace_points.json', 'proc_card_ttZ.dat']
         )
     )
 
@@ -70,7 +70,7 @@ for operator in operators:
         command='python {base}/clone_tarball.py proc_card_ttH.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
         outputs=['gridpack.tar.xz'],
-        extra_inputs=['points.json', 'proc_card_ttH.dat']
+        extra_inputs=['linspace_points.json', 'proc_card_ttH.dat']
         )
     )
 
