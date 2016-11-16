@@ -8,6 +8,8 @@ import subprocess
 import tarfile
 import tempdir
 
+from EffectiveTTVProduction.EffectiveTTVProduction.operators import operators
+
 parser = argparse.ArgumentParser(description='add Higgs Effective Lagrangian model to gridpack')
 parser.add_argument('process', help='process card to run')
 parser.add_argument('gridpack', help='gridpack to clone')
@@ -37,6 +39,12 @@ with tempdir.TempDir() as source:
 
         with open(os.path.join(madgraph, args.outparams), 'w') as f:
             pattern = re.compile('(\d*) ([\de\+\-\.]*) (#.*) ')
+            coefficients = []
+            for operator in operators:
+                if operator in args.operators:
+                    coefficients.append(points[operator][args.point])
+                else:
+                    coefficients.append(0.0)
             for out_line in outparams:
                 match = re.search(pattern, out_line)
                 if match:
@@ -47,8 +55,8 @@ with tempdir.TempDir() as source:
                             in_id, in_value, in_label = match.groups()
                             if in_label == out_label:
                                 out_line = re.sub(re.escape(out_value), in_value, out_line)
-                for operator in args.operators:
-                    out_line = re.sub('\d*.\d00000.*\# {0} '.format(operator), '{0} # {1}'.format(points[operator][args.point], operator), out_line)
+                for operator, coefficient in zip(operators, coefficients):
+                    out_line = re.sub('\d*.\d00000.*\# {0} '.format(operator), '{0} # {1}'.format(coefficient, operator), out_line)
 
                 f.write(out_line)
 
@@ -73,8 +81,8 @@ with tempdir.TempDir() as source:
 
         with open('point.json', 'w') as f:
             json.dump({
-                'operators': args.operators,
-                'coefficients': [points[o][args.point] for o in args.operators],
+                'operators': operators,
+                'coefficients': coefficients,
                 'point': args.point,
                 'process': args.process.split('_')[-1].replace('.dat', '')
             }, f)

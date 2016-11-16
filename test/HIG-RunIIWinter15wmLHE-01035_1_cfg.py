@@ -53,7 +53,7 @@ process.externalLHEProducer = cms.EDProducer("ExternalLHEProducer",
     outputFile = cms.string('cmsgrid_final.lhe'),
     scriptName = cms.FileInPath('GeneratorInterface/LHEInterface/data/run_generic_tarball_cvmfs.sh'),
     numberOfParameters = cms.uint32(1),
-    args = cms.vstring('/hadoop/store/user/awoodard/ttV/3/ttW_gridpacks_cuG/gridpack.tar_5716.xz')
+    args = cms.vstring('/hadoop/store/user/awoodard/ttV/4/ttW_gridpacks_cuB/gridpack.tar_2702.xz')
 )
 
 with open('parameters.json', 'r') as f:
@@ -65,10 +65,10 @@ with open('point.json', 'r') as f:
     info = json.load(f)
 
 process.annotator = cms.EDProducer('WilsonCoefficientAnnotator',
-        wilsonCoefficients = cms.vdouble(*info['coefficients']),
-        operators = cms.vstring(*[str(x) for x in info['operators']]),
+        wilsonCoefficients=cms.vdouble(*info['coefficients']),
+        operators=cms.vstring(*[str(x) for x in info['operators']]),
         point=cms.int32(info['point']),
-        process=cms.string(info['process'])
+        process=cms.string(str(info['process']))
 )
 
 process.LHEoutput.outputCommands += ['keep *_annotator_*_*']

@@ -9,7 +9,7 @@ from lobster import cmssw
 from lobster.core import *
 from lobster.monitor.elk.interface import ElkInterface
 
-gridpack_version = '4'
+gridpack_version = '5'
 gen_version = '1'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
