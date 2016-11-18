@@ -8,15 +8,15 @@ import os
 from lobster import cmssw
 from lobster.core import *
 
-# from EffectiveTTVProduction.EffectiveTTVProduction.operators import operators
 operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
              'cHd', 'cHu', 'cHud', 'cT', 'cWW', 'cpHQ', 'cu', 'cuB',
              'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
+# operators = ['cuB', 'cpHQ', 'cHQ', 'cHu', 'c3W']
 
-version = 'ttV/5'
+version = 'ttV/7'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
-points = 200
+points = 60
 
 storage = StorageConfiguration(
     output=[
@@ -32,7 +32,8 @@ storage = StorageConfiguration(
 processing = Category(
     name='processing',
     cores=2,
-    memory=1000
+    memory=1000,
+    disk=2000
 )
 
 workflows = []

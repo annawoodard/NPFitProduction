@@ -9,7 +9,7 @@ from lobster import cmssw
 from lobster.core import *
 from lobster.monitor.elk.interface import ElkInterface
 
-gridpack_version = '5'
+gridpack_version = '7'
 gen_version = '1'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
@@ -18,6 +18,7 @@ release = base[:base.find('/src')]
 operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
              'cHd', 'cHu', 'cHud', 'cT', 'cWW', 'cpHQ', 'cu', 'cuB',
              'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
+# operators = ['cuB', 'cpHQ', 'cHQ', 'cHu', 'c3W']
 
 storage = StorageConfiguration(
     output=[
@@ -64,8 +65,8 @@ for process in ['ttW', 'ttZ', 'ttH']:
                 outputs=['HIG-RunIIWinter15wmLHE-01035ND.root'],
                 dataset=MultiProductionDataset(
                     gridpacks='{}_gridpacks_{}'.format(process, operator),
-                    events_per_gridpack=1000,
-                    events_per_task=1000
+                    events_per_gridpack=2000,
+                    events_per_task=2000
                 ),
                 category=lhe_resources,
         )
