@@ -4,6 +4,7 @@ nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*gridpacks -d all -o /t
 '''
 import datetime
 import os
+import json
 
 from lobster import cmssw
 from lobster.core import *
@@ -16,7 +17,9 @@ operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
 version = 'ttV/9'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
-points = 60
+points_file = os.path.abspath('linspace_points.json')
+with open(points_file) as f:
+    points = json.load(f)
 
 storage = StorageConfiguration(
     output=[
@@ -44,10 +47,10 @@ for operator in operators:
         dataset=EmptyDataset(number_of_tasks=1),
         category=processing,
         sandbox=cmssw.Sandbox(release=release),
-        command='python {base}/clone_tarball.py proc_card_ttW.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttW012j_5f_madgraph_mlmMerging/v1/ttW012j_5f_madgraph_mlmMerging_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
-        unique_arguments=range(0, points),
+        command='python {base}/clone_tarball.py proc_card_ttW.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttW012j_5f_madgraph_mlmMerging/v1/ttW012j_5f_madgraph_mlmMerging_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops} {points}'.format(base=base, ops=operator, points=points_file),
+        unique_arguments=range(0, len(points.values()[0])),
         outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
-        extra_inputs=['linspace_points.json', 'proc_card_ttW.dat']
+        extra_inputs=['proc_card_ttW.dat']
         )
     )
 
@@ -56,10 +59,10 @@ for operator in operators:
         dataset=EmptyDataset(number_of_tasks=1),
         category=processing,
         sandbox=cmssw.Sandbox(release=release),
-        command='python {base}/clone_tarball.py proc_card_ttZ.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
-        unique_arguments=range(0, points),
+        command='python {base}/clone_tarball.py proc_card_ttZ.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops} {points}'.format(base=base, ops=operator, points=points_file),
+        unique_arguments=range(0, len(points.values()[0])),
         outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
-        extra_inputs=['linspace_points.json', 'proc_card_ttZ.dat']
+        extra_inputs=['proc_card_ttZ.dat']
         )
     )
 
@@ -68,10 +71,10 @@ for operator in operators:
         dataset=EmptyDataset(number_of_tasks=1),
         category=processing,
         sandbox=cmssw.Sandbox(release=release),
-        command='python {base}/clone_tarball.py proc_card_ttH.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
-        unique_arguments=range(0, points),
+        command='python {base}/clone_tarball.py proc_card_ttH.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops} {points}'.format(base=base, ops=operator, points=points_file),
+        unique_arguments=range(0, len(points.values()[0])),
         outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
-        extra_inputs=['linspace_points.json', 'proc_card_ttH.dat']
+        extra_inputs=['proc_card_ttH.dat']
         )
     )
 

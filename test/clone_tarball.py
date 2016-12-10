@@ -18,13 +18,14 @@ parser.add_argument('inparams', help='param card to clone')
 parser.add_argument('outparams', help='param card to update')
 parser.add_argument('cores', help='number of cores to use')
 parser.add_argument('operators', nargs='+', help='operators to scan')
+parser.add_argument('points', help='json file with parameter points')
 parser.add_argument('point', type=int, help='parameter space point')
 args = parser.parse_args()
 
 with tempdir.TempDir() as source:
     subprocess.call(['tar', 'xaf', args.gridpack, '--directory={0}'.format(source)])
 
-    with open('linspace_points.json') as f:
+    with open(args.points) as f:
         points = json.load(f)
 
     with open(os.path.join(source, args.inparams)) as f:
