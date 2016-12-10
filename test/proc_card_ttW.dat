@@ -45,4 +45,4 @@ generate p p > t t~ wpm NP=1
 #add process p p > t t~ wpm j j, wpm > wdecay wdecay @3
 # output ttW012j_5f -nojpeg
 
-output processtmp -nojpeg
+output processtmp

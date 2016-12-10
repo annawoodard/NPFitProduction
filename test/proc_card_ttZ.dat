@@ -43,4 +43,4 @@ generate p p > t t~ z NP=1
 # add process p p > t t~ z j, z > j j @3
 # add process p p > t t~ z j, z > vl vl~ @4
 # add process p p > t t~ l+ l- j @5
-output processtmp -nojpeg
+output processtmp

@@ -37,4 +37,4 @@ generate p p > t t~ h NP=1
 add process p p > t t~ h NP=1
 add process p p > t t~ h NP=1
 
-output processtmp -nojpeg
+output processtmp

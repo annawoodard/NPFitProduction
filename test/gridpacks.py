@@ -13,7 +13,7 @@ operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
              'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
 # operators = ['cuB', 'cpHQ', 'cHQ', 'cHu', 'c3W']
 
-version = 'ttV/7'
+version = 'ttV/9'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
 points = 60
@@ -46,7 +46,7 @@ for operator in operators:
         sandbox=cmssw.Sandbox(release=release),
         command='python {base}/clone_tarball.py proc_card_ttW.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttW012j_5f_madgraph_mlmMerging/v1/ttW012j_5f_madgraph_mlmMerging_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
-        outputs=['gridpack.tar.xz'],
+        outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
         extra_inputs=['linspace_points.json', 'proc_card_ttW.dat']
         )
     )
@@ -58,7 +58,7 @@ for operator in operators:
         sandbox=cmssw.Sandbox(release=release),
         command='python {base}/clone_tarball.py proc_card_ttZ.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
-        outputs=['gridpack.tar.xz'],
+        outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
         extra_inputs=['linspace_points.json', 'proc_card_ttZ.dat']
         )
     )
@@ -70,7 +70,7 @@ for operator in operators:
         sandbox=cmssw.Sandbox(release=release),
         command='python {base}/clone_tarball.py proc_card_ttH.dat /cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz {base}/MG5_aMC_v2_3_3.tar.gz mgbasedir/models/sm/restrict_no_b_mass.dat models/HEL_UFO/restrict_no_b_mass.dat 1 {ops}'.format(base=base, ops=operator),
         unique_arguments=range(0, points),
-        outputs=['gridpack.tar.xz'],
+        outputs=['gridpack.tar.xz', 'diagrams.tar.xz'],
         extra_inputs=['linspace_points.json', 'proc_card_ttH.dat']
         )
     )

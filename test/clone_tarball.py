@@ -88,4 +88,5 @@ with tempdir.TempDir() as source:
             }, f)
 
         subprocess.call(['tar', 'cJpsf', 'gridpack.tar.xz', 'mgbasedir', 'process', 'runcmsgrid.sh', 'point.json'])
+        subprocess.call(['tar', 'cJpsf', 'diagrams.tar.xz', 'processtmp/SubProcesses/*/*ps'])
 
