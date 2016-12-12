@@ -3,13 +3,14 @@ to start a factory:
 nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*gen -d all -o /tmp/${USER}_lobster_ttV_gen.debug -C $(readlink -f gen_factory.json) >& /tmp/${USER}_lobster_ttV_gen.log &
 '''
 import datetime
+import glob
 import os
 
 from lobster import cmssw
 from lobster.core import *
 from lobster.monitor.elk.interface import ElkInterface
 
-gridpack_version = '7'
+gridpack_version = '10'
 gen_version = '1'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
@@ -57,14 +58,15 @@ gen_resources = Category(
 workflows = []
 for process in ['ttW', 'ttZ', 'ttH']:
     for operator in operators:
+        gridpacks = glob.glob("/hadoop/store/user/awoodard/ttV/{}/{}_gridpacks_{}/gridpack.tar*".format(gridpack_version, process, operator))
+        gridpacks = [x.replace("/hadoop/store/user/awoodard/ttV/{}/".format(gridpack_version), '') for x in gridpacks]
         lhe = Workflow(
                 label='{}_lhe_{}'.format(process, operator),
-                # command='source /opt/crc/Modules/current/init/sh; module unload gcc; module load gcc/5.2.0; cmsRun',
                 pset='HIG-RunIIWinter15wmLHE-01035_1_cfg.py',
                 sandbox=cmssw.Sandbox(release=release),
                 outputs=['HIG-RunIIWinter15wmLHE-01035ND.root'],
                 dataset=MultiProductionDataset(
-                    gridpacks='{}_gridpacks_{}'.format(process, operator),
+                    gridpacks=gridpacks,
                     events_per_gridpack=2000,
                     events_per_task=2000
                 ),
