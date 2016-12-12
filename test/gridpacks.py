@@ -81,5 +81,5 @@ config = Config(
     plotdir='~/www/lobster/' + version,
     storage=storage,
     workflows=workflows,
-    advanced=AdvancedOptions(log_level=1, use_dashboard=False),
+    advanced=AdvancedOptions(log_level=1),
 )

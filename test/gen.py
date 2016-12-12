@@ -95,6 +95,6 @@ config = Config(
     plotdir='~/www/lobster/ttV/{}/{}/'.format(gridpack_version, gen_version),
     storage=storage,
     workflows=workflows,
-    advanced=AdvancedOptions(log_level=1, bad_exit_codes=[127], use_dashboard=False),
+    advanced=AdvancedOptions(log_level=1, bad_exit_codes=[127]),
     # elk=ElkInterface('elk.crc.nd.edu', 9200, 'elk.crc.nd.edu', 5601, project='ttV.{}.{}'.format(gridpack_version, gen_version), dashboards=['Core', 'Advanced', 'Tasks'])
 )
