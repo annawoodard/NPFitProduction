@@ -56,17 +56,16 @@ gen_resources = Category(
       )
 
 workflows = []
-for process in ['ttW', 'ttZ', 'ttH']:
+# for process in ['ttW', 'ttZ', 'ttH']:
+for process in ['DY', 'H', 'WWW', 'WWZ', 'WZ', 'WZZ', 'ZZ', 'ZZZ', 'tZq', 'tt', 'ttH', 'ttW', 'ttZ']:
     for operator in operators:
-        gridpacks = glob.glob("/hadoop/store/user/awoodard/ttV/{}/{}_gridpacks_{}/gridpack.tar*".format(gridpack_version, process, operator))
-        gridpacks = [x.replace("/hadoop/store/user/awoodard/ttV/{}/".format(gridpack_version), '') for x in gridpacks]
         lhe = Workflow(
                 label='{}_lhe_{}'.format(process, operator),
                 pset='HIG-RunIIWinter15wmLHE-01035_1_cfg.py',
                 sandbox=cmssw.Sandbox(release=release),
                 outputs=['HIG-RunIIWinter15wmLHE-01035ND.root'],
                 dataset=MultiProductionDataset(
-                    gridpacks=gridpacks,
+                    gridpacks='{}_gridpacks_{}'.format(process, operator),
                     events_per_gridpack=2000,
                     events_per_task=2000
                 ),
