@@ -57,13 +57,15 @@ gen_resources = Category(
 
 workflows = []
 # for process in ['ttW', 'ttZ', 'ttH']:
-for process in ['DY', 'H', 'WWW', 'WWZ', 'WZ', 'WZZ', 'ZZ', 'ZZZ', 'tZq', 'tt', 'ttH', 'ttW', 'ttZ']:
+# for process in ['DY', 'H', 'WWW', 'WWZ', 'WZ', 'WZZ', 'ZZ', 'ZZZ', 'tZq', 'tt', 'ttH', 'ttW', 'ttZ']:
+for process in ['ccW_third', 'ccW_three']:
     for operator in operators:
         lhe = Workflow(
                 label='{}_lhe_{}'.format(process, operator),
                 pset='HIG-RunIIWinter15wmLHE-01035_1_cfg.py',
                 sandbox=cmssw.Sandbox(release=release),
                 outputs=['HIG-RunIIWinter15wmLHE-01035ND.root'],
+                globaltag=False,
                 dataset=MultiProductionDataset(
                     gridpacks='{}_gridpacks_{}'.format(process, operator),
                     events_per_gridpack=2000,
@@ -79,6 +81,7 @@ for process in ['DY', 'H', 'WWW', 'WWZ', 'WZ', 'WZZ', 'ZZ', 'ZZZ', 'tZq', 'tt', 
                 merge_size='3.5G',
                 cleanup_input=True,
                 outputs=['HIG-RunIISummer15Gen-01168ND.root'],
+                globaltag=False,
                 dataset=ParentDataset(
                     parent=lhe,
                     units_per_task=1
