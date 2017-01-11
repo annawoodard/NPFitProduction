@@ -53,7 +53,7 @@ process.externalLHEProducer = cms.EDProducer("ExternalLHEProducer",
     outputFile = cms.string('cmsgrid_final.lhe'),
     scriptName = cms.FileInPath('GeneratorInterface/LHEInterface/data/run_generic_tarball_cvmfs.sh'),
     numberOfParameters = cms.uint32(1),
-    args = cms.vstring('/hadoop/store/user/awoodard/ttV/4/ttW_gridpacks_cuB/gridpack.tar_2702.xz')
+    args = cms.vstring('/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/EffectiveTTVProduction/EffectiveTTVProduction/test/gridpack.tar_62.xz')
 )
 
 with open('parameters.json', 'r') as f:

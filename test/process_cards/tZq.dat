@@ -15,7 +15,7 @@ define j = j b b~
 define wdecay = j l+ vl l- vl~
 define w = w+ w-
 
-generate p p > t b~ j z NP=1 
-add process p p > t~ b j z NP=1
+generate p p > t j z NP=1
+add process p p > t~ j z NP=1
 
 output processtmp

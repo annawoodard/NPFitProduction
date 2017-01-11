@@ -10,23 +10,25 @@ from lobster import cmssw
 from lobster.core import *
 from lobster.monitor.elk.interface import ElkInterface
 
-gridpack_version = '10'
+gridpack_version = '34'
 gen_version = '1'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
 
 # from EffectiveTTVProduction.EffectiveTTVProduction.operators import operators
-operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
-             'cHd', 'cHu', 'cHud', 'cT', 'cWW', 'cpHQ', 'cu', 'cuB',
-             'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
+operators = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
+# operators = ['c2W', 'c3G', 'c3W', 'cA', 'cB', 'cG', 'cHB', 'cHQ', 'cHW',
+             # 'cHd', 'cHu', 'cHud', 'cT', 'cWW', 'cpHQ', 'cu', 'cuB',
+             # 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcG', 'tcHW']
 # operators = ['cuB', 'cpHQ', 'cHQ', 'cHu', 'c3W']
+# operators = ['cHQ']
 
 storage = StorageConfiguration(
     output=[
         "hdfs://eddie.crc.nd.edu:19000/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
-        "file:///hadoop/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
-        # "root://deepthought.crc.nd.edu//store/user/$USER/ttV/{}/{}".format(gridpack_version, gen_version),
-        "chirp://eddie.crc.nd.edu:9094/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
+        # "file:///hadoop/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
+        "root://deepthought.crc.nd.edu//store/user/$USER/ttV/{}/{}".format(gridpack_version, gen_version),
+        # "chirp://eddie.crc.nd.edu:9094/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
         "gsiftp://T3_US_NotreDame/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version),
         "srm://T3_US_NotreDame/store/user/$USER/ttV/{}/{}/".format(gridpack_version, gen_version)
     ],
@@ -56,9 +58,10 @@ gen_resources = Category(
       )
 
 workflows = []
-# for process in ['ttW', 'ttZ', 'ttH']:
+for process in ['WW']:
 # for process in ['DY', 'H', 'WWW', 'WWZ', 'WZ', 'WZZ', 'ZZ', 'ZZZ', 'tZq', 'tt', 'ttH', 'ttW', 'ttZ']:
-for process in ['ccW_third', 'ccW_three']:
+# for process in ['ttW_third', 'ttW_three']:
+# for process in ['tt', 'H', 'ttH', 'ttW', 'ttZ']:
     for operator in operators:
         lhe = Workflow(
                 label='{}_lhe_{}'.format(process, operator),
@@ -68,8 +71,8 @@ for process in ['ccW_third', 'ccW_three']:
                 globaltag=False,
                 dataset=MultiProductionDataset(
                     gridpacks='{}_gridpacks_{}'.format(process, operator),
-                    events_per_gridpack=2000,
-                    events_per_task=2000
+                    events_per_gridpack=13000,
+                    events_per_task=13000
                 ),
                 category=lhe_resources,
         )
@@ -97,6 +100,6 @@ config = Config(
     plotdir='~/www/lobster/ttV/{}/{}/'.format(gridpack_version, gen_version),
     storage=storage,
     workflows=workflows,
-    advanced=AdvancedOptions(log_level=1, bad_exit_codes=[127]),
+    advanced=AdvancedOptions(log_level=1, bad_exit_codes=[127], abort_multiplier=100000, dashboard=False)
     # elk=ElkInterface('elk.crc.nd.edu', 9200, 'elk.crc.nd.edu', 5601, project='ttV.{}.{}'.format(gridpack_version, gen_version), dashboards=['Core', 'Advanced', 'Tasks'])
 )

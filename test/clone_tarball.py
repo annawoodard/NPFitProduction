@@ -7,6 +7,9 @@ import shutil
 import subprocess
 import tarfile
 import tempdir
+import time
+
+import numpy as np
 
 from EffectiveTTVProduction.EffectiveTTVProduction.operators import operators
 
@@ -25,10 +28,10 @@ args = parser.parse_args()
 with tempdir.TempDir() as source:
     subprocess.call(['tar', 'xaf', args.gridpack, '--directory={0}'.format(source)])
 
-    with open(args.points) as f:
-        points = json.load(f)
+    points = np.load(args.points)[()]
 
     with open(os.path.join(source, args.inparams)) as f:
+    # with open('/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/EffectiveTTVProduction/EffectiveTTVProduction/test/param_card.dat') as f:
         inparams = f.readlines()
 
     with tempdir.TempDir() as madgraph:
@@ -61,9 +64,15 @@ with tempdir.TempDir() as source:
 
                 f.write(out_line)
 
+        print('source is '+source)
+        print('madgraph is '+madgraph)
+        print('writing to '+os.path.join(madgraph, args.outparams))
+        # import time
+        # time.sleep(500000)
         subprocess.call(['python', os.path.join(madgraph, 'bin', 'mg5_aMC'), '-f', args.process])
 
         shutil.copy(os.path.join(source, 'process/madevent/Cards/run_card.dat'), 'processtmp/Cards')
+        # shutil.copy('/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/EffectiveTTVProduction/EffectiveTTVProduction/test/run_card.v24.dat', 'processtmp/Cards/run_card.dat')
         shutil.copy(os.path.join(source, 'process/madevent/Cards/grid_card.dat'), 'processtmp/Cards')
         shutil.copy(os.path.join(source, 'process/madevent/Cards/me5_configuration.txt'), 'processtmp/Cards')
         with open('processtmp/Cards/me5_configuration.txt', 'a') as f:
@@ -89,5 +98,5 @@ with tempdir.TempDir() as source:
             }, f)
 
         subprocess.call(['tar', 'cJpsf', 'gridpack.tar.xz', 'mgbasedir', 'process', 'runcmsgrid.sh', 'point.json'])
-        subprocess.call(['tar cJpsf diagrams.tar.xz processtmp/SubProcesses/*/*ps'], shell=True)
+        subprocess.call(['tar cJpsf diagrams.tar.xz processtmp/SubProcesses/'], shell=True)
 
