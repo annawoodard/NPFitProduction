@@ -61,6 +61,7 @@ def get_cross_section(args, card, value, diagrams=False):
                 print('run_mode = 2', file=f)
                 print('nb_core = {0}'.format(args.cores), file=f)
                 # print('lhapdf = /afs/crc.nd.edu/user/a/awoodard/local/bin/lhapdf-config', file=f)
+                print('lhapdf = /cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config', file=f)
                 print('automatic_html_opening = False', file=f)
 
 
@@ -75,10 +76,8 @@ def get_cross_section(args, card, value, diagrams=False):
                 subprocess.call(['tar cJpsf diagrams.tar.xz processtmp/'], shell=True)
 
         shutil.rmtree('processtmp')
-        # print(output)
 
         print('returning '+str(float(m.group(1)) if m else 9999999))
-
         return float(m.group(1)) if m else 9999999.
 
 def bisect(args, sm, low, high, go_left):

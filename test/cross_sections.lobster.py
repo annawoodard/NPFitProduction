@@ -1,7 +1,8 @@
 '''
 to start a factory:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*xsecs -d all -o /tmp/${USER}_lobster_ttV_xsecs.debug -C $(readlink -f xsec_factory.t3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
+nohup work_queue_factory --autosize -T condor -M lobster_$USER.*ttV.*xsecs -d all -o /tmp/${USER}_lobster_ttV_xsecs.debug -C $(readlink -f xsec_factory.t3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
 '''
+# FIXME maybe remove autosize
 import datetime
 import glob
 import os
@@ -13,14 +14,14 @@ import tempdir
 from lobster import cmssw
 from lobster.core import *
 
-version = 'ttV/42'
+version = 'ttV/45'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
 
 coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
-coefficients = ['cHu', 'cu', 'cuW', 'cuB']
-processes = [x.replace('slim_process_cards/', '').replace('.dat', '') for x in glob.glob('slim_process_cards/*.dat')]
-processes = ['ttZ', 'ttH', 'ttW']
+# coefficients = ['cHu', 'cu', 'cuW', 'cuB']
+processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
+# processes = ['ttZ', 'ttH', 'ttW']
 
 storage = StorageConfiguration(
     output=[
@@ -39,16 +40,16 @@ storage = StorageConfiguration(
 
 bounds_cat = Category(
     name='bounds',
-    cores=1,
-    memory=1000,
-    disk=1500
+    cores=12,
+    memory=4000,
+    disk=4000
 )
 
 xsecs_cat = Category(
     name='cross_sections',
-    cores=1,
-    memory=1000,
-    disk=1500
+    cores=6,
+    memory=4000,
+    disk=4000
 )
 
 # FIXME add Zgammastar?
@@ -57,6 +58,13 @@ xsecs_cat = Category(
 cutoff = (4 * np.pi) ** 2
 
 workflows = []
+unique_args = []
+
+chunksize = 5 # number of points each job computes
+for p in processes:
+    for low, high in zip(np.arange(0, 30, chunksize), np.arange(chunksize, 30 + chunksize, chunksize)):
+        unique_args += ['{}.dat {}'.format(p, ' '.join([str(x) for x in range(low, high)]))]
+
 for coefficient in coefficients:
     bounds = Workflow(
             label='bounds_{coefficient}'.format(coefficient=coefficient),
@@ -68,7 +76,7 @@ for coefficient in coefficients:
                 mg='MG5_aMC_v2_3_3.third_gen.tar.gz',
                 inp='mgbasedir/models/sm/restrict_no_b_mass.dat',
                 outp='models/HEL_UFO/restrict_no_b_mass.dat',
-                cores=6,
+                cores=12,
                 events=50000,
                 low=-1. * cutoff,
                 high=cutoff,
@@ -76,7 +84,7 @@ for coefficient in coefficients:
                 threshold=1,
                 constraints=' '.join(['{p}.dat'.format(p=p) for p in ['ttH', 'ttZ', 'ttW']]),
                 coefficient=coefficient),
-            extra_inputs=['{}/gen_jpeg-pl'.format(base), tempdir.__file__, '{}/MG5_aMC_v2_3_3.third_gen.tar.gz'.format(base), '{}/bounds.py'.format(base)] + ['{b}/slim_process_cards/{p}.dat'.format(b=base, p=p) for p in ['ttH', 'ttZ', 'ttW']],
+            extra_inputs=[tempdir.__file__, '{}/MG5_aMC_v2_3_3.third_gen.tar.gz'.format(base), '{}/bounds.py'.format(base)] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in ['ttH', 'ttZ', 'ttW']],
             outputs=['bounds.npy']
         )
 
@@ -93,35 +101,13 @@ for coefficient in coefficients:
                     points=30,
                     cores=6,
                     events=50000),
-                # unique_arguments=['{p}.dat {point}'.format(p=p, point=point) for p in processes for point in range(31)],
-                unique_arguments=['{p}.dat'.format(p=p) for p in processes],
+                unique_arguments=unique_args,
                 outputs=['cross_sections.npy'],
                 merge_command='python merge.py',
                 merge_size='2G',
-                extra_inputs=['{}/gen_jpeg-pl'.format(base), '{}/MG5_aMC_v2_3_3.third_gen.tar.gz'.format(base), tempdir.__file__, '{}/cross_sections.py'.format(base), '{}/merge.py'.format(base)] + ['{b}/slim_process_cards/{p}.dat'.format(b=base, p=p) for p in processes]
+                extra_inputs=['{}/MG5_aMC_v2_3_3.third_gen.tar.gz'.format(base), tempdir.__file__, '{}/cross_sections.py'.format(base), '{}/merge.py'.format(base)] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in processes]
             )
         )
-
-    # for process in processes:
-    #     workflows.append(Workflow(
-    #             label='diagrams_{process}_{coefficient}'.format(process=process, coefficient=coefficient),
-    #             dataset=EmptyDataset(number_of_tasks=1),
-    #             category=processing,
-    #             sandbox=cmssw.Sandbox(release=release),
-    #             command='python diagrams.py {gridpack} {mg} {inp} {outp} {cores} {events} {coefficient} {process}'.format(
-    #                 gridpack='/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz',
-    #                 mg='MG5_aMC_v2_3_3.third_gen.tar.gz',
-    #                 inp='mgbasedir/models/sm/restrict_no_b_mass.dat',
-    #                 outp='models/HEL_UFO/restrict_no_b_mass.dat',
-    #                 cores=6,
-    #                 events=50000,
-    #                 coefficient=coefficient,
-    #                 process='{process}.dat'.format(process=process)),
-    #             extra_inputs=['{}/gen_jpeg-pl'.format(base), tempdir.__file__, '{}/MG5_aMC_v2_3_3.third_gen.tar.gz'.format(base), '{b}/slim_process_cards/{p}.dat'.format(b=base, p=process), '{}/diagrams.py'.format(base)],
-    #             outputs=['diagrams.tar.xz']
-    #         )
-    #     )
-
 
 config = Config(
     label=str(version).replace('/', '_') + '_xsecs',

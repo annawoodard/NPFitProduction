@@ -4,17 +4,14 @@ set loop_optimized_output True
 set complex_mass_scheme False
 import model HEL_UFO-no_b_mass
 
-define p = g u c d s u~ c~ d~ s~
-define j = g u c d s u~ c~ d~ s~
+define p = g u c d s b u~ c~ d~ s~ b~
+define j = g u c d s b u~ c~ d~ s~ b~
 define l+ = e+ mu+ ta+
 define l- = e- mu- ta-
 define vl = ve vm vt
 define vl~ = ve~ vm~ vt~
-define p = p b b~
-define j = j b b~
-define wdecay = j l+ vl l- vl~
 define w = w+ w-
 
 generate p p > l+ l- NP=1
 
-output processtmp
+output processtmp -nojpeg
