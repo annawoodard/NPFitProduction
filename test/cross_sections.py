@@ -36,8 +36,7 @@ args = info['args']
 
 process = args.process.split('/')[-1].replace('.dat', '')
 dtype = [(name, 'f8') for name in operators]
-np.linspace(info['low'], info['high'], num=args.numpoints)
-values = np.hstack([np.array([0.0]), np.linspace(info['low'], info['high'], num=args.numpoints)])
+values = np.hstack([np.array([0.0]), np.linspace(info['left'], info['right'], num=args.numpoints)])
 
 for point in args.points:
     value = values[point]

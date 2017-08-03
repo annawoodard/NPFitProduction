@@ -14,7 +14,7 @@ import tempdir
 from lobster import cmssw
 from lobster.core import *
 
-version = 'ttV/45'
+version = 'ttV/46'
 base = os.path.dirname(os.path.abspath(__file__))
 release = base[:base.find('/src')]
 
@@ -41,8 +41,8 @@ storage = StorageConfiguration(
 bounds_cat = Category(
     name='bounds',
     cores=12,
-    memory=4000,
-    disk=4000
+    memory=15000,
+    disk=3000
 )
 
 xsecs_cat = Category(
@@ -71,15 +71,15 @@ for coefficient in coefficients:
             dataset=EmptyDataset(number_of_tasks=1),
             category=bounds_cat,
             sandbox=cmssw.Sandbox(release=release),
-            command='python bounds.py {gridpack} {mg} {inp} {outp} {cores} {events} {low} {high} {scale} {threshold} {constraints} {coefficient}'.format(
+            command='python bounds.py {gridpack} {mg} {inp} {outp} {cores} {events} {left} {right} {scale} {threshold} {constraints} {coefficient}'.format(
                 gridpack='/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz',
                 mg='MG5_aMC_v2_3_3.third_gen.tar.gz',
                 inp='mgbasedir/models/sm/restrict_no_b_mass.dat',
                 outp='models/HEL_UFO/restrict_no_b_mass.dat',
                 cores=12,
                 events=50000,
-                low=-1. * cutoff,
-                high=cutoff,
+                left=-1. * cutoff,
+                right=cutoff,
                 scale=5,
                 threshold=1,
                 constraints=' '.join(['{p}.dat'.format(p=p) for p in ['ttH', 'ttZ', 'ttW']]),

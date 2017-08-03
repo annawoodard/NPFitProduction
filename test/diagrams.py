@@ -26,4 +26,4 @@ parser.add_argument('value', type=float, help='value to set the coefficient at')
 
 args = parser.parse_args()
 
-get_cross_section(args, args.process, args.value, diagrams=True)
+get_cross_section(args, args.process, args.value)
