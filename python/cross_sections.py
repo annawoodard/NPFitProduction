@@ -1,4 +1,5 @@
 from __future__ import print_function
+from collections import defaultdict
 import argparse
 import json
 import multiprocessing
@@ -7,150 +8,190 @@ import re
 import shutil
 import subprocess
 import sys
-import tarfile
 import tempdir
 import time
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.operators import operators
+from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+
+class CrossSectionScan(object):
+    """A container for cross section scans over Wilson coefficient values.
+
+    """
+    def __init__(self, files=None):
+        self.points = defaultdict(dict)
+        self.cross_sections = defaultdict(dict)
+        self.signal_strengths = defaultdict(lambda: defaultdict(dict))
+
+        if files:
+            self.load(files)
+
+    def load(self, files):
+        for f in files:
+            info = np.load(f)
+            points = info['points'][()]
+            cross_sections = info['cross_sections'][()]
+            for coefficients in points:
+                for process in points[coefficients]:
+                    self.add(
+                        points[coefficients][process],
+                        cross_sections[coefficients][process],
+                        process,
+                        coefficients
+                    )
+
+    def add(self, points, cross_section, process, coefficients):
+        coefficients = tuple(coefficients)
+        if not isinstance(cross_section, np.ndarray):
+            cross_section = np.array([cross_section])
+        if len(points.shape) < 2:
+            points = points.reshape(1, len(coefficients))
+        if coefficients in self.points:
+            if process in self.points[coefficients]:
+                self.points[coefficients][process] = np.vstack([self.points[coefficients][process], points])
+                self.cross_sections[coefficients][process] = np.hstack(
+                    [self.cross_sections[coefficients][process], cross_section])
+            else:
+                self.points[coefficients][process] = points
+                self.cross_sections[coefficients][process] = cross_section
+        else:
+            self.points[coefficients] = {process: points}
+            self.cross_sections[coefficients] = {process: cross_section}
+
+        self.update_signal_strengths(process, coefficients)
+
+    def update_signal_strengths(self, process, coefficients):
+        sm = np.array([0] * len(coefficients))  # SM point has all coefficients set to 0
+        points = self.points[coefficients][process]
+        cross_sections = self.cross_sections[coefficients][process]
+        sm_indices = np.where((points == sm).all(axis=1))[0]
+        sm_cross_section = np.mean(cross_sections[sm_indices])
+        self.signal_strengths[coefficients][process] = (cross_sections / sm_cross_section)
+
+    def prune(self, processes):
+        for coefficients, points in self.points.items():
+            self.points[coefficients] = dict((k, v) for k, v in points.items() if k in processes)
+        for coefficients, cross_sections in self.cross_sections.items():
+            self.cross_sections[coefficients] = dict((k, v) for k, v in cross_sections.items() if k in processes)
+
+    def dump(self, filename):
+        np.savez(
+            filename,
+            points=self.points,
+            cross_sections=self.cross_sections
+        )
 
 
-def mp_call(arg):
-    # pool.map supports only one iterable
-    fct, args, kwargs = arg
-    try:
-        print('calling {} with args {}'.format(str(fct), str(args)))
-        return fct(*args, **kwargs)
-    except Exception as e:
-        raise Exception('method {0} failed with "{1}", using args {2}, {3}'.format(fct, e, args, kwargs))
+def get_points(coefficients, coarse_scan, scale, numvalues):
+    """Return a grid of points with dimensionality
+    equal to the number of coefficients, and each axis spanning the
+    minimum and maximum c_j for which NP / SM < scale, for any of the
+    processes in the coarse scan.
 
-def mp_map(args):
-    start = time.time()
-    pool = multiprocessing.Pool(processes=len(args), maxtasksperchild=1)
-    res = pool.map(mp_call, args)
-    pool.close()
-    pool.join()
+    Parameters
+    ----------
+        coefficients : tuple of str
+            The coefficients to be sampled.
+        coarse_scan : CrossSectionScan
+            The coarse scan to use for setting the coefficient value ranges.
+        scale : float
+            The maximum ratio of the (cross section)_NP / (cross section)_SM.
+        numvalues : int
+            The number of values to sample per coefficient.
 
-    print('{} took {:.2f} seconds'.format(args[0][0], time.time() - start))
-    return np.array(res)
-
-def get_cross_section(args, card, value):
-    with tempdir.TempDir() as sandbox:
-        start = os.getcwd()
-        os.chdir(sandbox)
-        os.makedirs('source')
-        os.makedirs('madgraph')
-        subprocess.call(['tar', 'xaf', args.gridpack, '--directory=source'])
-
-        with open(os.path.join('source', args.inparams)) as f:
-            inparams = f.readlines()
-
-        with tarfile.open(os.path.join(start, args.madgraph), "r:gz") as f:
-            f.extractall('madgraph')
-
-        with open(os.path.join('madgraph', args.outparams)) as f:
-            outparams = f.readlines()
-
-        with open(os.path.join('madgraph', args.outparams), 'w') as f:
-            pattern = re.compile('(\d*) ([\de\+\-\.]*) (#.*) ')
-            coefficients = []
-            for operator in operators:
-                # FIXME broken for more than one coefficient
-                if operator == args.coefficient:
-                    coefficients.append(value)
+    """
+    values = []
+    for i in range(len(coefficients)):
+        low = None
+        high = None
+        try:
+            for p, points in coarse_scan.points[coefficients].items():
+                coarse_points = points[:, i]
+                signal_strengths = coarse_scan.signal_strengths[coefficients][p]
+                passed = coarse_points[signal_strengths < scale]
+                if len(passed) < 2 or np.all(passed == 0):
+                    # the scan is too coarse, so pick the smallest range containing 0
+                    bottom = coarse_points[coarse_points < 0].max()
+                    top = coarse_points[coarse_points > 0].min()
+                    passed = np.array([bottom, top])
+                if low is None:
+                    low = min(passed)
+                    high = max(passed)
                 else:
-                    coefficients.append(0.0)
-            for out_line in outparams:
-                match = re.search(pattern, out_line)
-                if match:
-                    out_id, out_value, out_label = match.groups()
-                    for in_line in inparams:
-                        match = re.search(pattern, in_line)
-                        if match:
-                            in_id, in_value, in_label = match.groups()
-                            if in_label == out_label:
-                                out_line = re.sub(re.escape(out_value), in_value, out_line)
-                for operator, coefficient in zip(operators, coefficients):
-                    out_line = re.sub('\d*.\d00000.*\# {0} '.format(operator), '{0} # {1}'.format(coefficient, operator), out_line)
+                    low = max(low, min(passed))
+                    high = min(high, max(passed))
+            values += [np.hstack([np.zeros(1), np.linspace(low, high, numvalues)])]  # we add c_j = 0 to ensure we get the SM value
+        except KeyError:
+            raise ValueError('input scan missing {}'.format(','.join(coefficients)))
 
-                f.write(out_line)
+    return cartesian_product(*values)
 
-        subprocess.check_output(['python', os.path.join('madgraph', 'bin', 'mg5_aMC'), '-f', os.path.join(start, card)])
+def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
+    """
+    Update the Wilson coefficient value, run Madgraph, and return the calculated
+    cross section.
 
-        shutil.copy(os.path.join('source', 'process/madevent/Cards/run_card.dat'), 'processtmp/Cards')
-        shutil.copy(os.path.join('source', 'process/madevent/Cards/grid_card.dat'), 'processtmp/Cards')
-        shutil.copy(os.path.join('source', 'process/madevent/Cards/me5_configuration.txt'), 'processtmp/Cards')
-        with open('processtmp/Cards/me5_configuration.txt', 'a') as f:
-            print('run_mode = 2', file=f)
-            print('nb_core = {0}'.format(args.cores), file=f)
-            print('lhapdf = /cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config', file=f)
-            print('automatic_html_opening = False', file=f)
+    Parameters
+    ----------
+        madgraph : str
+            Tarball containing madgraph.
+        np_model : str
+            Tarball containing NP model
+        np_param_path : str
+            Path (relative to the unpacked madgraph tarball) to the NP parameter card.
+        coefficients : tuple of str
+            Coefficients to scan.
+        cores : int
+            Number of cores to use.
+        events : int
+            Number of events to use for cross section calculation.
+        cards : str
+            Path to the cards directory (must contain run_card.dat, grid_card.dat, me5_configuration.txt
+            and the parameter card pointed to by np_param_path).
+        point : np.ndarray
+            The values to set the coefficients to.
+    """
+    start = os.getcwd()
+    with tempdir.TempDir() as sandbox:
+        os.chdir(sandbox)
 
+        subprocess.call(['tar', 'xaf', os.path.join(start, madgraph)])
+        subprocess.call(['tar', 'xaf', os.path.join(start, np_model), '--directory=models'])
 
-        with open('processtmp/Cards/run_card.dat', 'a') as f:
-            print(' {} =  nevents'.format(args.events), file=f)
-            print('.false. =  gridpack', file=f)
+        if not np_param_path.startswith('models'):
+            np_param_path = os.path.join('models', np_param_path)
+        with open(np_param_path) as f:
+            np_params = f.readlines()
 
-        output = subprocess.check_output(['./processtmp/bin/generate_events', '-f'])
+        with open(np_param_path, 'w') as f:
+            for line in np_params:
+                for coefficient, value in zip(coefficients, point):
+                    line = re.sub('\d*.\d00000.*\# {0} '.format(coefficient), '{0} # {1}'.format(value, coefficient), line)
+
+                f.write(line)
+
+        subprocess.check_output(['python', os.path.join('bin', 'mg5_aMC'), '-f', os.path.join(start, process_card)])
+
+        with open(os.path.join(start, process_card)) as f:
+            card = f.read()
+        outdir = re.search('\noutput (\S*)', card).group(1)
+        carddir = os.path.join(outdir, 'Cards')
+
+        shutil.copy(os.path.join(start, cards, 'run_card.dat'), carddir)
+        shutil.copy(os.path.join(start, cards, 'grid_card.dat'), carddir)
+        shutil.copy(os.path.join(start, cards, 'me5_configuration.txt'), carddir)
+        with open(os.path.join(carddir, 'me5_configuration.txt'), 'a') as f:
+            print('nb_core = {0}'.format(cores), file=f)
+
+        with open(os.path.join(carddir, 'run_card.dat'), 'a') as f:
+            print(' {} =  nevents'.format(events), file=f)
+
+        output = subprocess.check_output(['./{}/bin/generate_events'.format(outdir), '-f'])
         m = re.search("Cross-section :\s*(.*) \+", output)
-
-        subprocess.call(['tar cJpsf {} processtmp/'.format(os.path.join(start, 'diagrams.tar.xz'))], shell=True)
-
         os.chdir(start)
-        print('getting cross section for {} with {}={}'.format(card, args.coefficient, str(value)))
-        print('returning '+str(float(m.group(1)) if m else None))
-        return float(m.group(1)) if m else np.nan
 
+        res = float(m.group(1)) if m else np.nan
+        print('point {}\nresult {}'.format(str(point), str(res)))
 
-# def bisect(args, sm, low, high, move_left):
-#     print('calling bisect with sm {} low {} high {}'.format(str(sm), str(low), str(high)))
-#     middle = (low + high) / 2.
-    # scales = mp_map([(get_cross_section, [args, c, middle], {}) for c in args.constraints]) / sm
-
-#     if np.abs(scales.max() - args.scale) < args.threshold:
-#         return middle
-#     elif move_left(scales.max()):
-#         return bisect(args, sm, low, middle, move_left)
-#     else:
-#         return bisect(args, sm, middle, high, move_left)
-
-def map_scales(args, sm, values):
-    res = mp_map([(get_cross_section, [args, c, v], {}) for v in values for c in args.constraints])
-    res = res.reshape(len(values), len(args.constraints))
-
-    print('values are {}'.format(str(values)))
-    print('inputs are {}'.format(str([[c, v] for v in values for c in args.constraints])))
-
-    return [max(res[i] / sm) for i in range(len(values))]
-
-def bisect(args, sm, left, right, left_to_right=True):
-    middle = (left + right) / 2.
-    y_left, y_right, y_middle = map_scales(args, sm, [left, right, middle])
-
-    while True:
-        print('starting bisect with left={} right={} left_to_right={}'.format(left, right, str(left_to_right)))
-        if (y_left is None) or (y_right is None) or (y_middle is None):
-            print('MadGraph failed to calculate cross section')
-            return None
-
-        if (y_left > args.scale) and (y_right > args.scale) and (y_middle > args.scale):
-            print('no solution between {:.2f} and {:.2f}'.format(left, right))
-            return None
-        if (y_left < args.scale) and (y_right < args.scale) and (y_middle < args.scale):
-            print('no solution between {:.2f} and {:.2f}'.format(left, right))
-            return None
-
-        if np.abs(y_middle - args.scale) < args.threshold:
-            return middle
-
-        if (left_to_right and y_middle > args.scale) or \
-                (not left_to_right and y_middle < args.scale):
-            left = middle
-            y_left = y_middle
-        if (left_to_right and y_middle < args.scale) or \
-                (not left_to_right and y_middle > args.scale):
-            right = middle
-            y_right = y_middle
-        middle = (left + right) / 2.
-        y_middle = map_scales(args, sm, [middle])[0]
+        return res

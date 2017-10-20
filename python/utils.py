@@ -1,0 +1,99 @@
+from __future__ import print_function
+import numpy as np
+import os
+import re
+import shutil
+import subprocess
+import tempdir
+
+def cartesian_product(*arrays):
+    # https://stackoverflow.com/questions/11144513
+    la = len(arrays)
+    dtype = np.result_type(*arrays)
+    arr = np.empty([len(a) for a in arrays] + [la], dtype=dtype)
+    for i, a in enumerate(np.ix_(*arrays)):
+        arr[...,i] = a
+    return arr.reshape(-1, la)
+
+def clone_cards(
+        sm_gridpack,
+        np_model,
+        sm_param_path,
+        np_param_path,
+        sm_card_path,
+        outdir,
+        lhapdf,
+        extras=[]):
+    """
+    Clone the parameter card of a SM gridpack. All parameters from the SM
+    card which exist in the NP card will be copied.
+
+    Parameters
+    ----------
+        sm_gridpack : str
+            SM gridpack to clone
+        model : str
+            Tarball containing NP model
+        sm_param_path : str
+            Path (relative to the unpacked SM gridpack) to the SM
+            parameter card
+        np_param_path : str
+            Path (relative to the unpacked model tarball) to
+            the NP parameter card.
+        sm_card_path : str
+            Path (relative to the unpacked SM gridpack) to the Cards
+            directory
+        outdir : str
+            Directory to write cloned cards to
+        lhapdf : str
+            Path to lhapdf config to use
+        extras : list
+            Anything extra to save from the sm_gridpack
+    """
+
+    if os.path.isdir(outdir):
+        shutil.rmtree(outdir)
+    os.makedirs(outdir)
+
+    with tempdir.TempDir() as sandbox:
+        os.makedirs('{}/sm'.format(sandbox))
+        os.makedirs('{}/np'.format(sandbox))
+        subprocess.call(['tar', 'xaf', sm_gridpack, '--directory={}/sm'.format(sandbox)])
+        subprocess.call(['tar', 'xaf', np_model, '--directory={}/np'.format(sandbox)])
+
+        with open(os.path.join(sandbox, 'sm', sm_param_path)) as f:
+            sm_params = f.readlines()
+
+        with open(os.path.join(sandbox, 'np', np_param_path)) as f:
+            np_params = f.readlines()
+
+        with open(os.path.join(outdir, os.path.split(np_param_path)[-1]), 'w') as f:
+            pattern = re.compile('(\d*) ([\de\+\-\.]*) (#.*) ')
+            for np_line in np_params:
+                match = re.search(pattern, np_line)
+                if match:
+                    _, sm_value, sm_label = match.groups()
+                    for sm_line in sm_params:
+                        match = re.search(pattern, sm_line)
+                        if match:
+                            _, np_value, np_label = match.groups()
+                            if np_label == sm_label:
+                                np_line = re.sub(re.escape(sm_value), np_value, np_line)
+
+                f.write(np_line)
+
+        shutil.copy(os.path.join(sandbox, 'sm', sm_card_path, 'run_card.dat'), outdir)
+        shutil.copy(os.path.join(sandbox, 'sm', sm_card_path, 'grid_card.dat'), outdir)
+        shutil.copy(os.path.join(sandbox, 'sm', sm_card_path, 'me5_configuration.txt'), outdir)
+
+        with open(os.path.join(outdir, 'me5_configuration.txt'), 'a') as f:
+            print('run_mode = 2', file=f)
+            print('lhapdf = {}'.format(lhapdf), file=f)
+            print('automatic_html_opening = False', file=f)
+
+        with open(os.path.join(outdir, 'run_card.dat'), 'a') as f:
+            print('.false. =  gridpack', file=f)
+
+        for entry in extras:
+            shutil.copy(os.path.join(sandbox, 'sm', entry), outdir)
+
