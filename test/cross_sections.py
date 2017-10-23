@@ -1,9 +1,9 @@
 '''
 to start a factory on the ND T3:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
+nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
 
 to start a factory at the CRC:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_CRC.json) --wrapper "python /afs/crc.nd.edu/group/ccl/software/runos/runos.py rhel6" --extra-options="--workdir=/disk" --worker-binary=/afs/crc.nd.edu/group/ccl/software/x86_64/redhat6/cctools/$cctools/bin/work_queue_worker >&  /tmp/${USER}_lobster_ttV.log &
+nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_CRC.json) --wrapper "python /afs/crc.nd.edu/group/ccl/software/runos/runos.py rhel6" --extra-options="--workdir=/disk" --worker-binary=/afs/crc.nd.edu/group/ccl/software/x86_64/redhat6/cctools/$cctools/bin/work_queue_worker >&  /tmp/${USER}_lobster_ttV_xsec.log &
 '''
 import datetime
 import glob
@@ -18,11 +18,9 @@ import numpy as np
 from lobster import cmssw
 from lobster.core import *
 
+# email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
+# email = 'awoodard@nd.edu'  # notification will be sent here when processing completes
 version = 'ttV/cross_sections/spam-34'
-email = 'awoodard@nd.edu'
-base = os.path.dirname(os.path.abspath(__file__))
-cards = os.path.join(base, 'cards', version)
-release = base[:base.find('/src')]
 coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 constraints = ['ttZ', 'ttH', 'ttW']  # these processes are used to constrain the left and right scan bounds
@@ -42,6 +40,10 @@ cross_section_numpoints = 30  # number of points to run for final scan
 chunksize = 10  # number of points to calculate per task
 zooms = 2  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
 zoom_numpoints = 100  # number of points to run for each zoom scan
+
+base = os.path.dirname(os.path.abspath(__file__))
+cards = os.path.join(base, 'cards', version)
+release = base[:base.find('/src')]
 
 #  make a copy of the cards used corresponding to this run, otherwise it is confusing to keep track of changes
 utils = imp.load_source('', os.path.join(base, '../python/utils.py'))
@@ -70,7 +72,7 @@ storage = StorageConfiguration(
     disable_input_streaming=True
 )
 
-madgraph = Category(
+madgraph_resources = Category(
     name='madgraph',
     cores=cores,
     memory=4000,
@@ -94,15 +96,15 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     zoom = Workflow(
         label='zoom_pass_1_{}'.format(tag),
         dataset=EmptyDataset(),
-        category=madgraph,
+        category=madgraph_resources,
         sandbox=cmssw.Sandbox(release=release),
         command='python interval.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {low} {high}'.format(
             np=zoom_numpoints,
             cores=cores,
             coefficients=','.join(coefficient_group),
             events=events,
-            mg='MG5_aMC_v2_3_3.tar.gz',
-            model='HEL_UFO.third_gen.tar.gz',
+            mg=madgraph,
+            model=np_model,
             pp=np_param_path,
             cards=os.path.split(cards)[-1],
             low=-1. * cutoff,
@@ -112,8 +114,8 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
         merge_size='2G',
         extra_inputs=[
             tempdir.__file__,
-            '{}/MG5_aMC_v2_3_3.tar.gz'.format(base),
-            '{}/HEL_UFO.third_gen.tar.gz'.format(base),
+            os.path.join(base, madgraph),
+            os.path.join(base, np_model),
             cards,
             '{}/interval.py'.format(base)
         ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in constraints],
@@ -128,15 +130,15 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 parent=zoom,
                 units_per_task=1
             ),
-            category=madgraph,
+            category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
             command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
                 np=zoom_numpoints,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
-                mg='MG5_aMC_v2_3_3.tar.gz',
-                model='HEL_UFO.third_gen.tar.gz',
+                mg=madgraph,
+                model=np_model,
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
                 scale=scale),
@@ -146,8 +148,8 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             cleanup_input=True,
             extra_inputs=[
                 tempdir.__file__,
-                '{}/MG5_aMC_v2_3_3.tar.gz'.format(base),
-                '{}/HEL_UFO.third_gen.tar.gz'.format(base),
+                os.path.join(base, madgraph),
+                os.path.join(base, np_model),
                 cards,
                 '{}/scale.py'.format(base)
             ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in constraints],
@@ -162,15 +164,15 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 parent=zoom,
                 units_per_task=1
             ),
-            category=madgraph,
+            category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
             command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
                 np=cross_section_numpoints,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
-                mg='MG5_aMC_v2_3_3.tar.gz',
-                model='HEL_UFO.third_gen.tar.gz',
+                mg=madgraph,
+                model=np_model,
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
                 scale=scale),
@@ -180,8 +182,8 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             cleanup_input=True,
             extra_inputs=[
                 tempdir.__file__,
-                '{}/MG5_aMC_v2_3_3.tar.gz'.format(base),
-                '{}/HEL_UFO.third_gen.tar.gz'.format(base),
+                os.path.join(base, madgraph),
+                os.path.join(base, np_model),
                 cards,
                 '{}/scale.py'.format(base)
             ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in processes],
@@ -189,11 +191,16 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
         )
     )
 
+if 'email' in dir():
+    options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email)
+else:
+    options = AdvancedOptions(log_level=1, abort_multiplier=100000)
+
 config = Config(
-    label=str(version).replace('/', '_') + '_xsecs',
+    label=str(version).replace('/', '_'),
     workdir='/tmpscratch/users/$USER/' + version,
     plotdir='~/www/lobster/' + version,
     storage=storage,
     workflows=workflows,
-    advanced=AdvancedOptions(log_level=1, abort_multiplier=100000, email=email)
+    advanced=options
 )
