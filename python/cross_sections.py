@@ -1,19 +1,15 @@
 from __future__ import print_function
 from collections import defaultdict
-import argparse
-import json
-import multiprocessing
 import os
 import re
 import shutil
 import subprocess
-import sys
 import tempdir
-import time
 
 import numpy as np
 
 from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+
 
 class CrossSectionScan(object):
     """A container for cross section scans over Wilson coefficient values.
@@ -127,6 +123,73 @@ def get_points(coefficients, coarse_scan, scale, numvalues):
 
     return cartesian_product(*values)
 
+
+def setup_model(base, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
+    """
+    Setup the NP model and update the coefficient value
+
+    Parameters
+    ----------
+        base : str
+            The base directory where the tarballs are located.
+        madgraph : str
+            Tarball containing madgraph.
+        np_model : str
+            Tarball containing NP model
+        np_param_path : str
+            Path (relative to the unpacked madgraph tarball) to the NP parameter card.
+        coefficients : tuple of str
+            Coefficients to scan.
+        cores : int
+            Number of cores to use.
+        events : int
+            Number of events to use for cross section calculation.
+        cards : str
+            Path to the cards directory (must contain run_card.dat, grid_card.dat, me5_configuration.txt
+            and the parameter card pointed to by np_param_path).
+        point : np.ndarray
+            The values to set the coefficients to.
+
+    Returns
+    ----------
+        outdir : str
+            The output madgraph processing directory.
+    """
+
+    subprocess.call(['tar', 'xaf', os.path.join(base, madgraph)])
+    subprocess.call(['tar', 'xaf', os.path.join(base, np_model), '--directory=models'])
+
+    if not np_param_path.startswith('models'):
+        np_param_path = os.path.join('models', np_param_path)
+    with open(np_param_path) as f:
+        np_params = f.readlines()
+
+    with open(np_param_path, 'w') as f:
+        for line in np_params:
+            for coefficient, value in zip(coefficients, point):
+                line = re.sub('\d*.\d00000.*\# {0} '.format(coefficient), '{0} # {1}'.format(value, coefficient), line)
+
+            f.write(line)
+
+    subprocess.check_output(['python', os.path.join('bin', 'mg5_aMC'), '-f', os.path.join(base, process_card)])
+
+    with open(os.path.join(base, process_card)) as f:
+        card = f.read()
+    outdir = re.search('\noutput (\S*)', card).group(1)
+    carddir = os.path.join(outdir, 'Cards')
+
+    shutil.copy(os.path.join(base, cards, 'run_card.dat'), carddir)
+    shutil.copy(os.path.join(base, cards, 'grid_card.dat'), carddir)
+    shutil.copy(os.path.join(base, cards, 'me5_configuration.txt'), carddir)
+    with open(os.path.join(carddir, 'me5_configuration.txt'), 'a') as f:
+        print('nb_core = {0}'.format(cores), file=f)
+
+    with open(os.path.join(carddir, 'run_card.dat'), 'a') as f:
+        print(' {} =  nevents'.format(events), file=f)
+
+    return outdir
+
+
 def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
     """
     Update the Wilson coefficient value, run Madgraph, and return the calculated
@@ -156,42 +219,12 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
     with tempdir.TempDir() as sandbox:
         os.chdir(sandbox)
 
-        subprocess.call(['tar', 'xaf', os.path.join(start, madgraph)])
-        subprocess.call(['tar', 'xaf', os.path.join(start, np_model), '--directory=models'])
-
-        if not np_param_path.startswith('models'):
-            np_param_path = os.path.join('models', np_param_path)
-        with open(np_param_path) as f:
-            np_params = f.readlines()
-
-        with open(np_param_path, 'w') as f:
-            for line in np_params:
-                for coefficient, value in zip(coefficients, point):
-                    line = re.sub('\d*.\d00000.*\# {0} '.format(coefficient), '{0} # {1}'.format(value, coefficient), line)
-
-                f.write(line)
-
-        subprocess.check_output(['python', os.path.join('bin', 'mg5_aMC'), '-f', os.path.join(start, process_card)])
-
-        with open(os.path.join(start, process_card)) as f:
-            card = f.read()
-        outdir = re.search('\noutput (\S*)', card).group(1)
-        carddir = os.path.join(outdir, 'Cards')
-
-        shutil.copy(os.path.join(start, cards, 'run_card.dat'), carddir)
-        shutil.copy(os.path.join(start, cards, 'grid_card.dat'), carddir)
-        shutil.copy(os.path.join(start, cards, 'me5_configuration.txt'), carddir)
-        with open(os.path.join(carddir, 'me5_configuration.txt'), 'a') as f:
-            print('nb_core = {0}'.format(cores), file=f)
-
-        with open(os.path.join(carddir, 'run_card.dat'), 'a') as f:
-            print(' {} =  nevents'.format(events), file=f)
+        outdir = setup_model(start, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point)
 
         output = subprocess.check_output(['./{}/bin/generate_events'.format(outdir), '-f'])
         m = re.search("Cross-section :\s*(.*) \+", output)
         os.chdir(start)
 
         res = float(m.group(1)) if m else np.nan
-        print('point {}\nresult {}'.format(str(point), str(res)))
 
         return res

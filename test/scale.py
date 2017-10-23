@@ -1,13 +1,4 @@
 import argparse
-import json
-import os
-import re
-import shutil
-import subprocess
-import sys
-import tarfile
-import tempdir
-import time
 
 import numpy as np
 
@@ -21,15 +12,11 @@ parser.add_argument('coefficients', type=str, help='comma-delimited list of wils
 parser.add_argument('events', type=int, help='number of events to use for cross section calculation')
 parser.add_argument('madgraph', type=str, help='tarball containing madgraph')
 parser.add_argument('np_model', type=str, help='tarball containing NP model')
-parser.add_argument(
-    'np_param_path',
-    type=str,
-    help='path (relative to the unpacked madgraph tarball) to the NP parameter card')
-parser.add_argument(
-    'cards',
-    type=str,
-    help='path to the cards directory (must contain run_card.dat, grid_card.dat, me5_configuration.txt'\
-    'and the parameter card pointed to by np_param_path)')
+parser.add_argument('np_param_path', type=str,
+                    help='path (relative to the unpacked madgraph tarball) to the NP parameter card')
+parser.add_argument('cards', type=str,
+                    help='path to the cards directory (must contain run_card.dat, grid_card.dat, '
+                    'me5_configuration.txt and the parameter card pointed to by np_param_path)')
 parser.add_argument('scale', type=float, help='maximum scaling to constrain coefficient values')
 parser.add_argument('process_card', type=str, help='which process card to run')
 parser.add_argument('indices', type=int, nargs='+', help='the indices of points to calculate')

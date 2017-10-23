@@ -6,14 +6,16 @@ import shutil
 import subprocess
 import tempdir
 
+
 def cartesian_product(*arrays):
     # https://stackoverflow.com/questions/11144513
     la = len(arrays)
     dtype = np.result_type(*arrays)
     arr = np.empty([len(a) for a in arrays] + [la], dtype=dtype)
     for i, a in enumerate(np.ix_(*arrays)):
-        arr[...,i] = a
+        arr[..., i] = a
     return arr.reshape(-1, la)
+
 
 def clone_cards(
         sm_gridpack,
@@ -96,4 +98,3 @@ def clone_cards(
 
         for entry in extras:
             shutil.copy(os.path.join(sandbox, 'sm', entry), outdir)
-
