@@ -1,10 +1,3 @@
-'''
-to start a factory on the ND T3:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
-
-to start a factory at the CRC:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_CRC.json) --wrapper "python /afs/crc.nd.edu/group/ccl/software/runos/runos.py rhel6" --extra-options="--workdir=/disk" --worker-binary=/afs/crc.nd.edu/group/ccl/software/x86_64/redhat6/cctools/$cctools/bin/work_queue_worker >&  /tmp/${USER}_lobster_ttV_xsec.log &
-'''
 import datetime
 import glob
 import imp
@@ -19,8 +12,7 @@ from lobster import cmssw
 from lobster.core import *
 
 # email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
-# email = 'awoodard@nd.edu'  # notification will be sent here when processing completes
-version = 'ttV/cross_sections/spam-34'
+version = 'ttV/cross_sections/1'  # you should increment this each time you make changes
 coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 constraints = ['ttZ', 'ttH', 'ttW']  # these processes are used to constrain the left and right scan bounds
@@ -35,11 +27,13 @@ sm_card_path = 'process/madevent/Cards'  # path (relative to the unpacked SM gri
 cores = 12
 events = 50000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
+low = -1. * cutoff
+high = 1. * cutoff
 dimension = 1  # number of coefficients to change per scan
-cross_section_numpoints = 30  # number of points to run for final scan
+cross_section_numvalues = 30  # number of values to use for final scan
 chunksize = 10  # number of points to calculate per task
 zooms = 2  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
-zoom_numpoints = 100  # number of points to run for each zoom scan
+zoom_numvalues = 100  # number of values to use for each zoom scan
 
 base = os.path.dirname(os.path.abspath(__file__))
 cards = os.path.join(base, 'cards', version)
@@ -80,14 +74,14 @@ madgraph_resources = Category(
 )
 
 
-def chunk(size, numpoints, processes, coefficients):
+def chunk(size, numvalues, processes, coefficients):
     unique_args = []
-    if size > numpoints:
-        size = numpoints
+    if size > numvalues:
+        size = numvalues
     for p in processes:
-        totalpoints = numpoints * len(coefficients)
-        for low, high in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + size, size)):
-            unique_args += ['{}.dat {}'.format(p, ' '.join([str(x) for x in np.arange(low, high)]))]
+        totalpoints = numvalues * len(coefficients)
+        for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + size, size)):
+            unique_args += ['{}.dat {}'.format(p, ' '.join([str(x) for x in np.arange(lower, higher)]))]
     return unique_args
 
 workflows = []
@@ -99,7 +93,7 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
         category=madgraph_resources,
         sandbox=cmssw.Sandbox(release=release),
         command='python interval.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {low} {high}'.format(
-            np=zoom_numpoints,
+            np=zoom_numvalues,
             cores=cores,
             coefficients=','.join(coefficient_group),
             events=events,
@@ -107,9 +101,9 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             model=np_model,
             pp=np_param_path,
             cards=os.path.split(cards)[-1],
-            low=-1. * cutoff,
-            high=cutoff),
-        unique_arguments=chunk(chunksize, zoom_numpoints, constraints, coefficient_group),
+            low=low,
+            high=high),
+        unique_arguments=chunk(chunksize, zoom_numvalues, constraints, coefficient_group),
         merge_command='merge_scans',
         merge_size='2G',
         extra_inputs=[
@@ -133,7 +127,7 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
             command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
-                np=zoom_numpoints,
+                np=zoom_numvalues,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
@@ -142,7 +136,7 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
                 scale=scale),
-            unique_arguments=chunk(chunksize / 2, zoom_numpoints, constraints, coefficient_group),
+            unique_arguments=chunk(chunksize / 2, zoom_numvalues, constraints, coefficient_group),
             merge_command='merge_scans',
             merge_size='2G',
             cleanup_input=True,
@@ -167,7 +161,7 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
             command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
-                np=cross_section_numpoints,
+                np=cross_section_numvalues,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
@@ -176,7 +170,7 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
                 scale=scale),
-            unique_arguments=chunk(chunksize / 2, cross_section_numpoints, processes, coefficient_group),
+            unique_arguments=chunk(chunksize / 2, cross_section_numvalues, processes, coefficient_group),
             merge_command='merge_scans',
             merge_size='2G',
             cleanup_input=True,
