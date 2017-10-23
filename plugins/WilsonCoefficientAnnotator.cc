@@ -49,23 +49,20 @@ class WilsonCoefficientAnnotator : public edm::one::EDProducer<edm::BeginRunProd
 
       // ----------member data ---------------------------
 
-      std::vector<double> coefficients_;
-      std::vector<std::string> operators_;
-      int point_;
+      std::vector<double> point_;
+      std::vector<std::string> wilsonCoefficients_;
       std::string process_;
 };
 
 
 WilsonCoefficientAnnotator::WilsonCoefficientAnnotator(const edm::ParameterSet& iConfig):
-  coefficients_(iConfig.getParameter<std::vector<double>>("wilsonCoefficients")),
-  operators_(iConfig.getParameter<std::vector<std::string>>("operators")),
-  point_(iConfig.getParameter<int>("point")),
+  point_(iConfig.getParameter<std::vector<double>>("point")),
+  wilsonCoefficients_(iConfig.getParameter<std::vector<std::string>>("wilsonCoefficients")),
   process_(iConfig.getParameter<std::string>("process"))
 {
 
-  produces<std::vector<double>, edm::InRun>("wilsonCoefficients");
-  produces<std::vector<std::string>, edm::InRun>("operators");
-  produces<int, edm::InRun>("point");
+  produces<std::vector<double>, edm::InRun>("point");
+  produces<std::vector<std::string>, edm::InRun>("wilsonCoefficients");
   produces<std::string, edm::InRun>("process");
 
 }
@@ -85,18 +82,15 @@ void
 WilsonCoefficientAnnotator::beginRunProduce(edm::Run& run, edm::EventSetup const& es)
 {
    using namespace edm;
-   std::auto_ptr<std::vector<double>> coefficients(new std::vector<double>);
-   *coefficients = coefficients_;
-   std::auto_ptr<std::vector<std::string>> operators(new std::vector<std::string>);
-   *operators = operators_;
-   std::auto_ptr<int> point(new int);
+   std::auto_ptr<std::vector<double>> point(new std::vector<double>);
    *point = point_;
+   std::auto_ptr<std::vector<std::string>> wilsonCoefficients(new std::vector<std::string>);
+   *wilsonCoefficients = wilsonCoefficients_;
    std::auto_ptr<std::string> process(new std::string);
    *process = process_;
 
-   run.put(coefficients, "wilsonCoefficients");
-   run.put(operators, "operators");
    run.put(point, "point");
+   run.put(wilsonCoefficients, "wilsonCoefficients");
    run.put(process, "process");
 }
 
