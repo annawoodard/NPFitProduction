@@ -1,27 +1,21 @@
-'''
-to start a factory:
-nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*gen -d all -o /tmp/${USER}_lobster_ttV_gen.debug -C $(readlink -f gen_factory.json) >& /tmp/${USER}_lobster_ttV_gen.log &
-'''
 import datetime
 import glob
+import imp
+import itertools
 import os
+import tempdir
+
+import numpy as np
 
 from lobster import cmssw
 from lobster.core import *
-from lobster.monitor.elk.interface import ElkInterface
 
-gridpack_version = 'spam-1'
-gen_version = '1'
-version = 'ttV/{}/{}'.format(gridpack_version, gen_version)
-email = 'awoodard@nd.edu'
-base = os.path.dirname(os.path.abspath(__file__))
-cards = os.path.join(base, 'cards', version)
-release = base[:base.find('/src')]
+version = 'ttV/gen/1'
+# email = 'changeme@changeme.edu'  # notification will be sent here when processing completes
 coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
-processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
-constraints = ['ttZ', 'ttH', 'ttW']  # these processes are used to constrain the left and right scan bounds
-scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
+constraints = ['ttW', 'ttZ', 'ttH']  # processes to consider for range finding (none of these processes can exceed  NP / SM < scale)
 sm_gridpack = '/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz'  # SM gridpack to clone
+processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 lhapdf = '/cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config'
 madgraph = 'MG5_aMC_v2_3_3.tar.gz'  # madgraph tarball
 np_model = 'HEL_UFO.third_gen.tar.gz'  # NP model tarball
@@ -32,15 +26,20 @@ cores = 12
 events = 50000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 dimension = 1  # number of coefficients to change per scan
-numpoints = 30
-chunksize = 10  # number of points to calculate per task
+numvalues = 30  # number of values per coefficient
+low = -1
+high = 1
+scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
+scan = 'scans.npz'
 
-coefficients = ['cHu', 'cu', 'cuW', 'cuB']
-processes = ['ttZ']
-zoom_numpoints = 10
-# dimension = 2
-chunksize = 10
+base = os.path.dirname(os.path.abspath(__file__))
+cards = os.path.join(base, 'cards', version)
+release = base[:base.find('/src')]
 
+
+# This function 'clones' an SM gridpack by copying its cards and all common parameters between it and
+# the NP parameter card. If you want to use your own cards, comment this out and point the `cards` variable
+# to a directory containing your run_card.dat, grid_card.dat, me5_configuration.txt, and the NP param_card.dat
 utils = imp.load_source('', os.path.join(base, '../python/utils.py'))
 utils.clone_cards(
     sm_gridpack,
@@ -49,8 +48,7 @@ utils.clone_cards(
     np_param_path,
     sm_card_path,
     cards,
-    lhapdf,
-    extras=['mgbasedir', 'runcmsgrid.sh']
+    lhapdf
 )
 
 storage = StorageConfiguration(
@@ -90,35 +88,52 @@ gen_resources = Category(
 )
 
 workflows = []
-for process in processes[-1]:
+for process in processes:
     for coefficient_group in itertools.combinations(coefficients, dimension):
-        unique_args = []
-        for low, high in zip(np.arange(0, numpoints, chunksize), np.arange(chunksize, numpoints + chunksize, chunksize)):
-            unique_args += [range(low, high)]
         tag = '_'.join(coefficient_group)
         gridpacks = Workflow(
             label='{}_gridpacks_{}'.format(process, tag),
-            dataset=MultiGridpackDataset(events_per_gridpack=26000, events_per_task=13000),
+            # dataset=MultiGridpackDataset(events_per_gridpack=26000, events_per_task=13000),
+            dataset=MultiGridpackDataset(events_per_gridpack=10, events_per_task=5),
             category=gridpack_resources,
             sandbox=cmssw.Sandbox(release=release),
-            command='python cross_sections.py scale {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
-                np=cross_section_numpoints,
+            # Use the command below to constrain coefficient values with an input scan and scale value rather than an interval. You can
+            # obtain the input scan by running 'cross_sections.py' and then `merge_scans totals.npz outdir/zoomed_*/*npz`
+            # command='python gridpack.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {pcard} --constraints {constraints} --scale {scale} --scan {scan}'.format(
+            #     np=numvalues,
+            #     cores=cores,
+            #     coefficients=','.join(coefficient_group),
+            #     events=events,
+            #     mg=madgraph,
+            #     model='HEL_UFO.third_gen.tar.gz',
+            #     pp=np_param_path,
+            #     cards=os.path.split(cards)[-1],
+            #     pcard='{}.dat'.format(process),
+            #     constraints=constraints
+            #     scale=scale,
+            #     scan=scan),
+            command='python gridpack.py {np} {cores} {coefficients} {events} {sm} {mg} {model} {pp} {cards} {pcard} --low {low} --high {high}'.format(
+                np=numvalues,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
-                mg='MG5_aMC_v2_3_3.tar.gz',
-                model='HEL_UFO.third_gen.tar.gz',
+                sm=sm_gridpack,
+                mg=madgraph,
+                model=np_model,
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
-                scale=scale),
-            unique_arguments=range(0, len(points.values()[0])),
+                pcard='{}.dat'.format(process),
+                low=low,
+                high=high),
+            unique_arguments=range(numvalues * len(coefficient_group)),
             extra_inputs=[
                 tempdir.__file__,
-                '{}/MG5_aMC_v2_3_3.tar.gz'.format(base),
-                '{}/HEL_UFO.third_gen.tar.gz'.format(base),
+                os.path.join(base, madgraph),
+                os.path.join(base, np_model),
+                '{b}/process_cards/{p}.dat'.format(b=base, p=process),
+                '{}/gridpack.py'.format(base),
                 cards,
-                '{b}/process_cards/{p}.dat'.format(b=base, p=p)
-            ]
+            ],
             outputs=['gridpack.tar.xz']
         )
 
@@ -128,7 +143,7 @@ for process in processes[-1]:
                 sandbox=cmssw.Sandbox(release=release),
                 outputs=['HIG-RunIIWinter15wmLHE-01035ND.root'],
                 globaltag=False,
-                dataset=ParentDataset(parent=gridpacks),
+                dataset=ParentMultiGridpackDataset(parent=gridpacks, randomize_seeds=True),
                 category=lhe_resources,
         )
 
@@ -146,12 +161,16 @@ for process in processes[-1]:
 
         workflows.extend([gridpacks, lhe, gen])
 
+if 'email' in dir():
+    options = AdvancedOptions(log_level=1, bad_exit_codes=[127], abort_multiplier=100000, email=email)
+else:
+    options = AdvancedOptions(log_level=1, bad_exit_codes=[127], abort_multiplier=100000)
+
 config = Config(
     label=str(version).replace('/', '_') + '_gen',
     workdir='/tmpscratch/users/$USER/' + version,
     plotdir='~/www/lobster/' + version,
     storage=storage,
     workflows=workflows,
-    advanced=AdvancedOptions(log_level=1, bad_exit_codes=[127], abort_multiplier=100000, email=email)
-    # elk=ElkInterface('elk.crc.nd.edu', 9200, 'elk.crc.nd.edu', 5601, project='ttV.{}.{}'.format(gridpack_version, gen_version), dashboards=['Core', 'Advanced', 'Tasks'])
+    advanced=options
 )

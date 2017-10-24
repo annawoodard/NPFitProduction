@@ -1,12 +1,15 @@
 # Auto generated configuration file
-# using: 
-# Revision: 1.19 
-# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
+# using:
+# Revision: 1.19
+# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v
 # with command line options: Configuration/GenProduction/python/HIG-RunIIWinter15wmLHE-01035-fragment.py --fileout file:HIG-RunIIWinter15wmLHE-01035ND.root --mc --eventcontent LHE --datatier LHE --conditions MCRUN2_71_V1::All --step LHE --python_filename HIG-RunIIWinter15wmLHE-01035_1_cfg.py --no_exec --customise Configuration/DataProcessing/Utils.addMonitoring -n 2320
 import json
+import os
 import subprocess
 
 import FWCore.ParameterSet.Config as cms
+
+from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan
 
 process = cms.Process('LHE')
 
@@ -59,16 +62,15 @@ process.externalLHEProducer = cms.EDProducer("ExternalLHEProducer",
 with open('parameters.json', 'r') as f:
     config = json.load(f)
 
-import os
-subprocess.call(['tar', 'xaf', os.path.basename(config['mask']['files'][0].replace('file:', '')), 'point.json'])
-with open('point.json', 'r') as f:
-    info = json.load(f)
+subprocess.call(['tar', 'xaf', os.path.basename(config['mask']['files'][0].replace('file:', '')), 'point.npz'])
+info = CrossSectionScan(['point.npz'])
+coefficients = info.points.keys()[0]
+process_name = info.points[coefficients].keys()[0]
 
 process.annotator = cms.EDProducer('WilsonCoefficientAnnotator',
-        wilsonCoefficients=cms.vdouble(*info['coefficients']),
-        operators=cms.vstring(*[str(x) for x in info['operators']]),
-        point=cms.int32(info['point']),
-        process=cms.string(str(info['process']))
+        wilsonCoefficients=cms.vstring(*[str(x) for x in coefficients]),
+        point=cms.vdouble(*info.points[coefficients][process_name]),
+        process=cms.string(str(process_name))
 )
 
 process.LHEoutput.outputCommands += ['keep *_annotator_*_*']
@@ -77,7 +79,7 @@ process.lhe_step = cms.Path(process.externalLHEProducer*process.annotator)
 process.endjob_step = cms.EndPath(process.endOfProcess)
 process.LHEoutput_step = cms.EndPath(process.LHEoutput)
 
-process.schedule = cms.Schedule(process.lhe_step,process.endjob_step,process.LHEoutput_step)
+process.schedule = cms.Schedule(process.lhe_step, process.endjob_step, process.LHEoutput_step)
 
 from Configuration.DataProcessing.Utils import addMonitoring 
 process = addMonitoring(process)
