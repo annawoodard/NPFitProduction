@@ -21,7 +21,7 @@ Finally, start a work queue factory to submit your jobs. If you are running at N
 Submitting to the CRC cluster is recommended as there are far more resources. For additional resources, you can submit to the ND T3 by logging into to `earth.crc.nd.edu` and executing:
 
     nohup work_queue_factory -T condor -M lobster_$USER.*ttV.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
-    
+
 If you are not running at Notre Dame, you will need to setup [cctools](https://ccl.cse.nd.edu/software/) yourself. It should be possible to submit jobs by substituting `-T condor` in the factory command above with your batch system type. Supported batch systems include condor, sge, torque, moab, slurm, chirp, and amazon.
 
 
@@ -29,7 +29,7 @@ If you are not running at Notre Dame, you will need to setup [cctools](https://c
 The Lobster configuration for producing gen samples is located at [test/gen.py](test/gen.py). Two approaches to finding the range of Wilson coefficient values are supported. A `low` and `high` interval can be specified, which will fix the range to [low, high] for each coefficient. Alternatively, a scan from the previous step can be used to restrict the ranges such that `(NP cross section) / (SM cross section) < scale`. The configuration runs the interval method out of the box without modification for testing, but for your own purposes you will need to adjust the variables defined at the top. The following commands assume you are in the `test` directory. To run, activate your Lobster virtualenv:
 
     . ~/.lobster/bin/activate
-    
+
 Next, start the Lobster processing run:
 
     lobster process gen.py
@@ -39,6 +39,10 @@ Finally, start a work queue factory to submit your jobs (currently only submitti
     nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*gen -d all -o /tmp/${USER}_lobster_ttV_gen.debug -C $(readlink -f factory_gen_T3.json) >& /tmp/${USER}_lobster_ttV_gen.log &
 
 ## More details
+
+### Reproducibility
+Using this in an analysis may require tweaking of various parameters in the input cards. Each time you make any changes and run new samples, you should iterate the `version` at the top of your Lobster configuration. The cards you use are copied to a `cards` directory under that version number; the output goes to your `storage.output` directory under that version number, and all of the configuration files are copied to `workdir` under that version number. As long as you do not delete the past versions, it should be possible to reproduce a run, or figure out what the difference is between two runs.
+
 ### Producing gen samples using the scaling method
 Run a cross section scan. Then merge the output into a single file (replace the directory below with the output directory of the scan):
 
@@ -67,7 +71,7 @@ Both `cuB` and `cuW` will be sampled at values -2.,  0.,  and 2. The sampled poi
            [ 2., -2.],
            [ 2.,  0.],
            [ 2.,  2.]])
-           
+
 When using the scaling method of coefficient rangefinding, an input 'coarse-grained scan' is requred. All points for which none of the `constraint` processes exceed `(NP cross section) / (SM cross section) < scale` will be found. From those points, the maximum and minimum value for each coefficient is set as `low` and `high` for that coefficient. Note that due to interference effects between coefficients, a more sophisticated approach might be needed.
 
 ### Using the gen samples
