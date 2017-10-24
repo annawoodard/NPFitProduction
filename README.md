@@ -44,11 +44,12 @@ Finally, start a work queue factory to submit your jobs (currently only submitti
 Using this in an analysis may require tweaking of various parameters in the input cards. Each time you make any changes and run new samples, you should iterate the `version` at the top of your Lobster configuration. The cards you use are copied to a `cards` directory under that version number; the output goes to your `storage.output` directory under that version number, and all of the configuration files are copied to `workdir` under that version number. As long as you do not delete the past versions, it should be possible to reproduce a run, or figure out what the difference is between two runs.
 
 ### Producing gen samples using the scaling method
-Run a cross section scan. Then merge the output into a single file (replace the directory below with the output directory of the scan):
+Run a cross section scan. Then merge the output into a single file (this example assumes `version=ttV/cross_sections/1/` in your [test/cross_sections.py](test/cross_sections.py), replace it with your version):
 
-    merge_scans scans.npz /hadoop/store/user/$USER/ttV/cross_sections/1/final_scan_*/*npz
+    merge_scans final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/final_pass_*/*npz
+    mv final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/
 
-Now replace the `command` in [test/gen.py](test/gen.py) with the commented out one and add `scans.npz` to `extra_inputs`, and follow the instructions above for producing gen samples.
+Now replace the `command` in [test/gen.py](test/gen.py) with the commented out one and follow the instructions above for producing gen samples.
 
 ### Multidimensional scans
 For multidimensional scans increase `dimension` in your Lobster configuration file. Each coefficient can take on `numvalues` different values, which are chosen in evenly spaced intervals between `low` and `high`. As an example, consider a Lobster configuration file with the following definitions:
@@ -72,7 +73,7 @@ Both `cuB` and `cuW` will be sampled at values -2.,  0.,  and 2. The sampled poi
            [ 2.,  0.],
            [ 2.,  2.]])
 
-When using the scaling method of coefficient rangefinding, an input 'coarse-grained scan' is requred. All points for which none of the `constraint` processes exceed `(NP cross section) / (SM cross section) < scale` will be found. From those points, the maximum and minimum value for each coefficient is set as `low` and `high` for that coefficient. Note that due to interference effects between coefficients, a more sophisticated approach might be needed.
+When using the scaling method of coefficient rangefinding, an input 'coarse-grained scan' is required. All points for which none of the `constraint` processes exceed `(NP cross section) / (SM cross section) < scale` will be found. From those points, the maximum and minimum value for each coefficient is set as `low` and `high` for that coefficient. Note that due to interference effects between coefficients, a more sophisticated approach might be needed.
 
 ### Using the gen samples
 By default [test/gen.py](test/gen.py) produces one output dataset per group of coefficients to scan, lumping all parameter points together. The sampled parameter point is saved to each event for further processing; see [plugins/wilsonCoefficientAnnotator.cc](plugins/wilsonCoefficientAnnotator.cc).

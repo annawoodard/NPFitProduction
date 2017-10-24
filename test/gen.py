@@ -30,7 +30,8 @@ numvalues = 30  # number of values per coefficient
 low = -1
 high = 1
 scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
-scan = 'scans.npz'
+scan = 'final_pass.total.npz'
+cross_sections_version = 'ttV/cross_sections/1'  # if you are constraining using an input scan, set this to the version from `test/cross_sections.py`
 
 base = os.path.dirname(os.path.abspath(__file__))
 cards = os.path.join(base, 'cards', version)
@@ -87,6 +88,14 @@ gen_resources = Category(
     disk=1000,
 )
 
+gridpack_inputs=[
+    tempdir.__file__,
+    os.path.join(base, madgraph),
+    os.path.join(base, np_model),
+    '{}/gridpack.py'.format(base),
+    cards
+]
+
 workflows = []
 for process in processes:
     for coefficient_group in itertools.combinations(coefficients, dimension):
@@ -97,8 +106,11 @@ for process in processes:
             dataset=MultiGridpackDataset(events_per_gridpack=10, events_per_task=5),
             category=gridpack_resources,
             sandbox=cmssw.Sandbox(release=release),
-            # Use the command below to constrain coefficient values with an input scan and scale value rather than an interval. You can
-            # obtain the input scan by running 'cross_sections.py' and then `merge_scans totals.npz outdir/zoomed_*/*npz`
+            # Use the command and extra_inputs below to constrain coefficient values with an input scan and
+            # scale value rather than an interval. You can obtain the input scan by running 'cross_sections.py'
+            # and then (example assuming scan='final_pass.total.npz' and cross_sections_version='ttV/cross_sections/1')
+            #     merge_scans final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/final_pass_*/*npz
+            #     mv final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/
             # command='python gridpack.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {pcard} --constraints {constraints} --scale {scale} --scan {scan}'.format(
             #     np=numvalues,
             #     cores=cores,
@@ -112,6 +124,10 @@ for process in processes:
             #     constraints=constraints
             #     scale=scale,
             #     scan=scan),
+            # extra_inputs=gridpack_inputs + [
+            #     '{b}/process_cards/{p}.dat'.format(b=base, p=process),
+            #     os.path.join('/hadoop/store/user/$USER', cross_section_version, scan')
+            # ]
             command='python gridpack.py {np} {cores} {coefficients} {events} {sm} {mg} {model} {pp} {cards} {pcard} --low {low} --high {high}'.format(
                 np=numvalues,
                 cores=cores,
@@ -125,15 +141,8 @@ for process in processes:
                 pcard='{}.dat'.format(process),
                 low=low,
                 high=high),
+            extra_inputs=gridpack_inputs + ['{b}/process_cards/{p}.dat'.format(b=base, p=process)],
             unique_arguments=range(numvalues * len(coefficient_group)),
-            extra_inputs=[
-                tempdir.__file__,
-                os.path.join(base, madgraph),
-                os.path.join(base, np_model),
-                '{b}/process_cards/{p}.dat'.format(b=base, p=process),
-                '{}/gridpack.py'.format(base),
-                cards,
-            ],
             outputs=['gridpack.tar.xz']
         )
 
