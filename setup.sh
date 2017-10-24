@@ -2,7 +2,7 @@
 
 cat <<EOF
 =========================================================================
-this script creates a working directory for the EffectiveTTV production
+this script creates a working directory for EffectiveTTV production
 output is in setup.log
 =========================================================================
 EOF
@@ -22,8 +22,9 @@ git cms-init > /dev/null
 git clone git@github.com:annawoodard/EffectiveTTVProduction.git EffectiveTTVProduction/EffectiveTTVProduction
 
 scram b -j 32
-) > setup.log
 
+pip install --user tempdir
+) > setup.log
 
 cat <<EOF
 =========================================================================
