@@ -13,7 +13,6 @@ from lobster.core import *
 version = 'ttV/gen/1'
 # email = 'changeme@changeme.edu'  # notification will be sent here when processing completes
 coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
-constraints = ['ttW', 'ttZ', 'ttH']  # processes to consider for range finding (none of these processes can exceed  NP / SM < scale)
 sm_gridpack = '/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz'  # SM gridpack to clone
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 lhapdf = '/cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config'
@@ -24,19 +23,27 @@ sm_param_path = 'mgbasedir/models/sm/restrict_no_b_mass.dat'  # path (relative t
 sm_card_path = 'process/madevent/Cards'  # path (relative to the unpacked SM gridpack) to the SM card directory
 cores = 12
 events = 50000
-cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 dimension = 1  # number of coefficients to change per scan
 numvalues = 30  # number of values per coefficient
-low = -1
-high = 1
-scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
-scan = 'final_pass.total.npz'
-cross_sections_version = 'ttV/cross_sections/1'  # if you are constraining using an input scan, set this to the version from `test/cross_sections.py`
 
 base = os.path.dirname(os.path.abspath(__file__))
 cards = os.path.join(base, 'cards', version)
 release = base[:base.find('/src')]
 
+####### needed for interval rangefinding method (otherwise, these have no effect) #######
+cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
+# low = -1. * cutoff
+# high = 1. * cutoff
+low = -10
+high = 10
+#########################################################################################
+
+####### needed for scaling rangefinding method (otherwise, these have no effect) ########
+scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
+scan = 'final_pass.total.npz'  # the merged output from running `test/cross_sections.py`, i.e. `merge_scans final_pass.total.npz outdir/final_pass_*/*npz`
+cross_sections_version = 'ttV/cross_sections/1'  # the version from `test/cross_sections.py`
+constraints = ['ttW', 'ttZ', 'ttH']  # processes to consider for range finding (none of these processes can exceed  NP / SM < scale)
+#########################################################################################
 
 # This function 'clones' an SM gridpack by copying its cards and all common parameters between it and
 # the NP parameter card. If you want to use your own cards, comment this out and point the `cards` variable
@@ -102,8 +109,7 @@ for process in processes:
         tag = '_'.join(coefficient_group)
         gridpacks = Workflow(
             label='{}_gridpacks_{}'.format(process, tag),
-            # dataset=MultiGridpackDataset(events_per_gridpack=26000, events_per_task=13000),
-            dataset=MultiGridpackDataset(events_per_gridpack=10, events_per_task=5),
+            dataset=MultiGridpackDataset(events_per_gridpack=26000, events_per_lumi=13000),
             category=gridpack_resources,
             sandbox=cmssw.Sandbox(release=release),
             # Use the command and extra_inputs below to constrain coefficient values with an input scan and
