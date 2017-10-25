@@ -44,12 +44,12 @@ Finally, start a work queue factory to submit your jobs (currently only submitti
 Using this in an analysis may require tweaking of various parameters in the input cards. Each time you make any changes and run new samples, you should iterate the `version` at the top of your Lobster configuration. The cards you use are copied to a `cards` directory under that version number; the output goes to your `storage.output` directory under that version number, and all of the configuration files are copied to `workdir` under that version number. As long as you do not delete the past versions, it should be possible to reproduce a run, or figure out what the difference is between two runs.
 
 ### Producing gen samples using the scaling method
-Run a cross section scan. Then merge the output into a single file (this example assumes `version=ttV/cross_sections/1/` in your [test/cross_sections.py](test/cross_sections.py), replace it with your version):
+The scaling method is recommended (the interval method is used in the example above because it works out of the box, without requiring a previous cross section scan). To use the scaling method: first, run a cross section scan. Then merge the output into a single file (this example assumes `version=ttV/cross_sections/1/` in your [test/cross_sections.py](test/cross_sections.py), replace it with your version):
 
     merge_scans final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/final_pass_*/*npz
     mv final_pass.total.npz /hadoop/store/user/$USER/ttV/cross_sections/1/
 
-Now replace the `command` in [test/gen.py](test/gen.py) with the commented out one and follow the instructions above for producing gen samples.
+Now replace the `command` in [test/gen.py](test/gen.py) with the commented out one, adjust `cross_sections_version` to match what you used above, and if necessary adjust `constraints` to match the processes that you want the restriction `(NP cross section) / (SM cross section) < scale` to be applied to. Finally, follow the instructions above for producing gen samples.
 
 ### Multidimensional scans
 For multidimensional scans increase `dimension` in your Lobster configuration file. Each coefficient can take on `numvalues` different values, which are chosen in evenly spaced intervals between `low` and `high`. As an example, consider a Lobster configuration file with the following definitions:
