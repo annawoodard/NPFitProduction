@@ -57,6 +57,30 @@ class CrossSectionScan(object):
 
         self.update_signal_strengths(process, coefficients)
 
+    def deduplicate(self, coefficients, process):
+        """Deduplicate points
+
+        Calculate the average cross section for each duplicated point,
+        then merge the duplicated points into a single point with cross
+        section equal to the average. Does not currently handle points
+        calculated with different numbers of events (in which case the
+        average should be weighted). Note this should only be used when
+        producing samples, where points could be duplicated for
+        efficient parallelization. For Madgraph-only scans, calculation
+        of the cross section is fast enough that you should avoid
+        requesting duplicated points rather than doing so and
+        de-duplicating afterwards.
+
+        See https://stackoverflow.com/questions/31878240
+        """
+        sort = np.lexsort(self.points[coefficients][process].T)
+        mask = np.append(True, np.any(np.diff(self.points[coefficients][process][sort], axis=0), axis=1))
+        tag = mask.cumsum() - 1
+        averages = np.bincount(tag, self.cross_sections[coefficients][process][sort]) / np.bincount(tag)
+        self.cross_sections[coefficients][process] = averages
+        self.points[coefficients][process] = self.points[coefficients][process][sort][mask]
+
+
     def update_signal_strengths(self, process, coefficients):
         sm = np.array([0] * len(coefficients))  # SM point has all coefficients set to 0
         points = self.points[coefficients][process]
@@ -64,6 +88,7 @@ class CrossSectionScan(object):
         sm_indices = np.where((points == sm).all(axis=1))[0]
         sm_cross_section = np.mean(cross_sections[sm_indices])
         self.signal_strengths[coefficients][process] = (cross_sections / sm_cross_section)
+        self.cross_sections['sm'][process] = sm_cross_section
 
     def prune(self, processes):
         for coefficients, points in self.points.items():
