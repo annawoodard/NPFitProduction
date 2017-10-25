@@ -16,11 +16,11 @@ Next, start the Lobster processing run:
 
 Finally, start a work queue factory to submit your jobs. If you are running at Notre Dame, login to a CRC headnode (for example `condorfe.crc.nd.edu`) and execute:
 
-    nohup work_queue_factory -T condor -M lobster_$USER.*ttV.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_CRC.json) --wrapper "python /afs/crc.nd.edu/group/ccl/software/runos/runos.py rhel6" --extra-options="--workdir=/disk" --worker-binary=/afs/crc.nd.edu/group/ccl/software/x86_64/redhat6/cctools/$cctools/bin/work_queue_worker >&  /tmp/${USER}_lobster_ttV.log &
+    nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_CRC.json) --wrapper "python /afs/crc.nd.edu/group/ccl/software/runos/runos.py rhel6" --extra-options="--workdir=/disk" --worker-binary=/afs/crc.nd.edu/group/ccl/software/x86_64/redhat6/cctools/$cctools/bin/work_queue_worker >&  /tmp/${USER}_lobster_ttV.log &
 
 Submitting to the CRC cluster is recommended as there are far more resources. For additional resources, you can submit to the ND T3 by logging into to `earth.crc.nd.edu` and executing:
 
-    nohup work_queue_factory -T condor -M lobster_$USER.*ttV.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
+    nohup work_queue_factory -T condor -M lobster_$USER.*ttV.*cross_sections.* -d all -o /tmp/${USER}_lobster_ttV_factory.debug -C $(readlink -f factory_cross_sections_T3.json) >& /tmp/${USER}_lobster_ttV_xsec.log &
 
 If you are not running at Notre Dame, you will need to setup [cctools](https://ccl.cse.nd.edu/software/) yourself. It should be possible to submit jobs by substituting `-T condor` in the factory command above with your batch system type. Supported batch systems include condor, sge, torque, moab, slurm, chirp, and amazon.
 
