@@ -1,41 +1,69 @@
 from __future__ import print_function
 from collections import defaultdict
+import itertools
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tempdir
 
 import numpy as np
 
 from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
 
-
 class CrossSectionScan(object):
     """A container for cross section scans over Wilson coefficient values.
 
     """
-    def __init__(self, files=None):
+
+    def __init__(self, fn=None):
         self.points = defaultdict(dict)
         self.cross_sections = defaultdict(dict)
-        self.signal_strengths = defaultdict(lambda: defaultdict(dict))
+        self.scales = defaultdict(dict)
+        self.fit_constants = defaultdict(dict)
+        self.fit_errs = defaultdict(dict)
 
-        if files:
-            self.load(files)
+        if fn is not None:
+            if isinstance(fn, list):
+                self.loadmany(fn)
+            elif os.path.isfile(fn):
+                self.load(fn)
 
-    def load(self, files):
+    def load(self, fn):
+        info = np.load(fn)
+        self.points = info['points'][()]
+        self.cross_sections = info['cross_sections'][()]
+        self.scales = info['scales'][()]
+        self.fit_constants = info['fit_constants'][()]
+        self.fit_errs = info['fit_errs'][()]
+
+    def loadmany(self, files):
         for f in files:
-            info = np.load(f)
-            points = info['points'][()]
-            cross_sections = info['cross_sections'][()]
-            for coefficients in points:
-                for process in points[coefficients]:
-                    self.add(
-                        points[coefficients][process],
-                        cross_sections[coefficients][process],
-                        process,
-                        coefficients
-                    )
+            try:
+                info = np.load(f)
+                points = info['points'][()]
+                cross_sections = info['cross_sections'][()]
+                for coefficients in points:
+                    for process in points[coefficients]:
+                        self.add(
+                            points[coefficients][process],
+                            cross_sections[coefficients][process],
+                            process,
+                            coefficients
+                        )
+            except Exception as e:
+                print('skipping bad input file {}: {}'.format(f, e))
+        for coefficients in self.points:
+            for process in self.points[coefficients]:
+                try:
+                    self.update_scales(coefficients, process)
+                    self.deduplicate(coefficients, process)
+                except (RuntimeError, KeyError) as e:
+                    print(e)
+                    self.prune([process])
+
+
 
     def add(self, points, cross_section, process, coefficients):
         coefficients = tuple(coefficients)
@@ -54,8 +82,6 @@ class CrossSectionScan(object):
         else:
             self.points[coefficients] = {process: points}
             self.cross_sections[coefficients] = {process: cross_section}
-
-        self.update_signal_strengths(process, coefficients)
 
     def deduplicate(self, coefficients, process):
         """Deduplicate points
@@ -80,14 +106,15 @@ class CrossSectionScan(object):
         self.cross_sections[coefficients][process] = averages
         self.points[coefficients][process] = self.points[coefficients][process][sort][mask]
 
-
-    def update_signal_strengths(self, process, coefficients):
+    def update_scales(self, coefficients, process):
         sm = np.array([0] * len(coefficients))  # SM point has all coefficients set to 0
         points = self.points[coefficients][process]
         cross_sections = self.cross_sections[coefficients][process]
         sm_indices = np.where((points == sm).all(axis=1))[0]
+        if len(sm_indices) == 0:
+            raise RuntimeError('scan does not contain the SM point for coefficients {} and process {}'.format(coefficients, process))
         sm_cross_section = np.mean(cross_sections[sm_indices])
-        self.signal_strengths[coefficients][process] = (cross_sections / sm_cross_section)
+        self.scales[coefficients][process] = (cross_sections / sm_cross_section)
         self.cross_sections['sm'][process] = sm_cross_section
 
     def prune(self, processes):
@@ -100,11 +127,72 @@ class CrossSectionScan(object):
         np.savez(
             filename,
             points=self.points,
-            cross_sections=self.cross_sections
+            cross_sections=self.cross_sections,
+            scales=self.scales,
+            fit_constants=self.fit_constants,
+            fit_errs=self.fit_errs
         )
 
+    def model(self, points):
+        rows, dim = points.shape
+        pairs = list(itertools.combinations(range(0, dim), 2))
 
-def get_points(coefficients, coarse_scan, scale, numvalues):
+        constant = np.array([[1.0]] * rows)
+        linear = points
+        quad = points * points
+        mixed = points[:, [x0 for x0, x1 in pairs]] * points[:, [x1 for x0, x1 in pairs]]
+
+        return np.hstack([constant, linear, quad, mixed])
+
+    def fit(self, coefficients, maxpoints=None):
+        """Perform a fit to describe how processes are scaled as a function of Wilson coefficients
+
+        The matrix element M can be expressed in terms of the SM piece M_0 and NP
+        pieces M_1, M_2, etc.
+
+        For one Wilson coefficient c_1:
+        M = M_0 + c_1 M_1
+        dsigma(c_1) ~ |M|^2 = s_0 + s_1 c_1 + s_2 c_1^2
+
+        For two Wilson coefficients c_1, c_2:
+        M = M_0 + c_1 M_1 + c_2 M_2
+        dsigma(c_1, c_2) ~ |M^2| = s_0 + s_1 c_1 + s_2 c_2 + s_3 c_1^2 + s_4 c_2^2 + s_5 c_1 c_2
+
+        And similarly for more Wilson coefficients. By solving the system of equations, we can determine
+        the constants s_i.
+        """
+        for process, points in self.points[coefficients].items():
+            if process not in self.scales[coefficients]:
+                self.update_scales(coefficients, process)
+            indices = np.arange(0, len(points))
+            np.random.shuffle(indices)
+            train = indices
+            if maxpoints is not None and maxpoints < len(indices):
+                train = indices[:maxpoints]
+            matrix = self.model(points[train])
+            scales = self.scales[coefficients][process]
+            # the fit must go through the SM point, so we weight it
+            weights = np.diag([10000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
+            self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix),
+                    np.dot(scales[train], weights))
+            if maxpoints is not None and maxpoints < len(indices):
+                test = indices[maxpoints:]
+                predicted = self.evaluate(coefficients, points[test], process)
+                self.fit_errs[coefficients][process] = (scales[test] - predicted) / scales[test] * 100
+
+    def evaluate(self, coefficients, points, process):
+        if not self.fit_constants[coefficients]:
+            self.fit(coefficients)
+        matrix = self.model(points)
+
+        return np.dot(matrix, self.fit_constants[coefficients][process])
+
+def get_maxes(scales, grid, coefficients):
+    maxes = [scales[grid[:, i] > 0].max() for i in range(len(coefficients))]
+    maxes += [scales[grid[:, i] < 0].max() for i in range(len(coefficients))]
+    return maxes
+
+def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
     equal to the number of coefficients, and each axis spanning the
     minimum and maximum c_j for which NP / SM < scale, for any of the
@@ -120,33 +208,57 @@ def get_points(coefficients, coarse_scan, scale, numvalues):
             The maximum ratio of the (cross section)_NP / (cross section)_SM.
         numvalues : int
             The number of values to sample per coefficient.
+        step : float
+            Change the range this much per iteration while searching for the desired range.
 
     """
     values = []
-    for i in range(len(coefficients)):
-        low = None
-        high = None
-        try:
-            for p, points in coarse_scan.points[coefficients].items():
-                coarse_points = points[:, i]
-                signal_strengths = coarse_scan.signal_strengths[coefficients][p]
-                passed = coarse_points[signal_strengths < scale]
-                if len(passed) < 2 or np.all(passed == 0):
-                    # the scan is too coarse, so pick the smallest range containing 0
-                    bottom = coarse_points[coarse_points < 0].max()
-                    top = coarse_points[coarse_points > 0].min()
-                    passed = np.array([bottom, top])
-                if low is None:
-                    low = min(passed)
-                    high = max(passed)
-                else:
-                    low = max(low, min(passed))
-                    high = min(high, max(passed))
-            values += [np.hstack([np.zeros(1), np.linspace(low, high, numvalues)])]  # we add c_j = 0 to ensure we get the SM value
-        except KeyError:
-            raise ValueError('input scan missing {}'.format(','.join(coefficients)))
+    if coefficients not in coarse_scan.points:
+        raise RuntimeError('coarse scan is missing {}'.format(coefficients))
+    coarse_scan.fit(coefficients)
+    ranges = None
+    # import pdb
+    # pdb.set_trace()
+    for process, points in coarse_scan.points[coefficients].items():
+        values = [np.linspace(-1 * np.abs(points[:, i]).max(), np.abs(points[:, i]).max(), interpolate_numvalues) for i in range(len(coefficients))]
+        grid = cartesian_product(*values)
+        scales = coarse_scan.evaluate(coefficients, grid, process)
+        while np.any([s < scale for s in get_maxes(scales, grid, coefficients)]):
+            # case 1: process is not affected by operators, try to quickly reach the endpoint
+            if (np.abs(grid).max() > (4 * np.pi) ** 2):  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
+                break
+            values = [np.linspace(-1 * np.abs(grid[:, i]).max() * 2., np.abs(grid[:, i]).max() * 2., interpolate_numvalues) for i in range(len(coefficients))]
+            grid = cartesian_product(*values)
+            scales = coarse_scan.evaluate(coefficients, grid, process)
+        while np.any([s > scale for s in get_maxes(scales, grid, coefficients)]):
+            if (np.abs(grid).max()) < min_value:
+                raise RuntimeError('fit did not converge')
+            # case 2: we are above the endpoint, try to quickly zoom in
+            values = [np.linspace(-1 * np.abs(grid[:, i]).max() / 2., np.abs(grid[:, i]).max() / 2., interpolate_numvalues) for i in range(len(coefficients))]
+            grid = cartesian_product(*values)
+            scales = coarse_scan.evaluate(coefficients, grid, process)
+        while np.any([s < scale for s in get_maxes(scales, grid, coefficients)]):
+            # we overshot, now slowly zoom out
+            if (np.abs(grid).max() > (4 * np.pi) ** 2):
+                break
+            values = [np.linspace(-1 * np.abs(grid[:, i]).max() * (1. + step), np.abs(grid[:, i]).max() * (1. + step), interpolate_numvalues) for i in range(len(coefficients))]
+            grid = cartesian_product(*values)
+            scales = coarse_scan.evaluate(coefficients, grid, process)
+        passed = grid[scales <= scale]
+        endpoint = np.array([np.abs(passed[:, i]).max() for i in range(len(coefficients))])
+        if ranges is None:
+            ranges = endpoint
+        else:
+            ranges = np.amin(np.vstack([endpoint, ranges]), axis=0)
+        print('ranges '+str(ranges))
+        print('ranges shape '+str(ranges.shape))
 
-    return cartesian_product(*values)
+    calculate_values = [np.hstack([np.zeros(1), np.linspace(-1. * ranges[i], ranges[i], calculate_numvalues - 1)]) for i in range(len(coefficients))]
+    print('calcualte values '+str(calculate_values))
+    grid = cartesian_product(*calculate_values)
+    scales = coarse_scan.evaluate(coefficients, grid, process)
+
+    return cartesian_product(*calculate_values)
 
 
 def setup_model(base, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
@@ -250,6 +362,7 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
         m = re.search("Cross-section :\s*(.*) \+", output)
         os.chdir(start)
 
-        res = float(m.group(1)) if m else np.nan
-
-        return res
+        if m:
+            return float(m.group(1))
+        else:
+            sys.exit(1)

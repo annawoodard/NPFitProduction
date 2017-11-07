@@ -12,11 +12,13 @@ from lobster import cmssw
 from lobster.core import *
 
 # email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
-version = 'ttV/cross_sections/1'  # you should increment this each time you make changes
-coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
+dimension = 1  # number of coefficients to change per scan
+version = 'ttV/cross_sections/2/{}d'.format(dimension)  # you should increment this each time you make changes
+# coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
+coefficients = ['cuW', 'cuB', 'cH', 'tc3G', 'c3G', 'cHu', 'c2G', 'cuG']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 constraints = ['ttZ', 'ttH', 'ttW']  # these processes are used to constrain the left and right scan bounds
-scale = 5  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
+scale = 10  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
 sm_gridpack = '/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz'  # SM gridpack to clone
 lhapdf = '/cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config'
 madgraph = 'MG5_aMC_v2_3_3.tar.gz'  # madgraph tarball
@@ -29,21 +31,24 @@ events = 50000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 low = -1. * cutoff
 high = 1. * cutoff
-dimension = 1  # number of coefficients to change per scan
-cross_section_numvalues = 30  # number of values to use for final scan
-chunksize = 10  # number of points to calculate per task
 zooms = 2  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
-zoom_numvalues = 100  # number of values to use for each zoom scan
+final_numvalues = 32  # number of values to use for final scan
+zoom_numvalues = 3  # number of values to use for each zoom scan
+interpolate_numvalues = 1000  # number of values to use for interpolating
+chunksize = 10
+maxchunks = 1000
 
 base = os.path.dirname(os.path.abspath(__file__))
 cards = os.path.join(base, 'cards', version)
 release = base[:base.find('/src')]
 
+processes = constraints
+
 #  make a copy of the cards used corresponding to this run, otherwise it is confusing to keep track of changes
 utils = imp.load_source('', os.path.join(base, '../python/utils.py'))
 utils.clone_cards(
-    sm_gridpack,
-    np_model,
+    os.path.join(base, sm_gridpack),
+    os.path.join(base, np_model),
     sm_param_path,
     np_param_path,
     sm_card_path,
@@ -70,30 +75,32 @@ madgraph_resources = Category(
     name='madgraph',
     cores=cores,
     memory=4000,
-    disk=4000
+    disk=2500
 )
 
 
 def chunk(size, numvalues, processes, coefficients):
     unique_args = []
-    if size > numvalues:
-        size = numvalues
     for p in processes:
-        totalpoints = numvalues * len(coefficients)
-        for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + size, size)):
+        totalpoints = (numvalues) ** len(coefficients)
+        if size > totalpoints:
+            size = totalpoints
+        for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + 1, size)):
             unique_args += ['{}.dat {}'.format(p, ' '.join([str(x) for x in np.arange(lower, higher)]))]
+    unique_args = unique_args[:maxchunks]
+    np.random.shuffle(unique_args)
     return unique_args
 
 workflows = []
 for coefficient_group in itertools.combinations(coefficients, dimension):
     tag = '_'.join(coefficient_group)
     zoom = Workflow(
-        label='zoom_pass_1_{}'.format(tag),
+        label='interval_pass_{}'.format(tag),
         dataset=EmptyDataset(),
         category=madgraph_resources,
         sandbox=cmssw.Sandbox(release=release),
-        command='python interval.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {low} {high}'.format(
-            np=zoom_numvalues,
+        command='python interval.py {nv} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {low} {high}'.format(
+            nv=zoom_numvalues,
             cores=cores,
             coefficients=','.join(coefficient_group),
             events=events,
@@ -117,17 +124,18 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     )
     workflows.append(zoom)
 
-    for i in range(zooms - 1):
+    for i in range(zooms):
         zoom = Workflow(
-            label='zoom_pass_{}_{}'.format(i + 2, tag),
+            label='zoom_pass_{}_{}'.format(i + 1, tag),
             dataset=ParentDataset(
                 parent=zoom,
                 units_per_task=1
             ),
             category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
-            command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
-                np=zoom_numvalues,
+            command='python scale.py {iv} {cv} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
+                iv=interpolate_numvalues,
+                cv=zoom_numvalues,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
@@ -135,11 +143,11 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 model=np_model,
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
-                scale=scale),
-            unique_arguments=chunk(chunksize / 2, zoom_numvalues, constraints, coefficient_group),
+                scale=scale * (zooms + 1 - i)),
+            unique_arguments=chunk(chunksize, zoom_numvalues, constraints, coefficient_group),
             merge_command='merge_scans',
             merge_size='2G',
-            cleanup_input=True,
+            # cleanup_input=True,
             extra_inputs=[
                 tempdir.__file__,
                 os.path.join(base, madgraph),
@@ -154,14 +162,16 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     workflows.append(
         Workflow(
             label='final_pass_{}'.format(tag),
+            # dataset=Dataset(files='/afs/crc.nd.edu/user/a/awoodard/www/.private/ttV/48/cross_sections.npz'),
             dataset=ParentDataset(
                 parent=zoom,
                 units_per_task=1
             ),
             category=madgraph_resources,
             sandbox=cmssw.Sandbox(release=release),
-            command='python scale.py {np} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
-                np=cross_section_numvalues,
+            command='python scale.py {ip} {cv} {cores} {coefficients} {events} {mg} {model} {pp} {cards} {scale}'.format(
+                ip=interpolate_numvalues,
+                cv=final_numvalues,
                 cores=cores,
                 coefficients=','.join(coefficient_group),
                 events=events,
@@ -170,10 +180,10 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
                 pp=np_param_path,
                 cards=os.path.split(cards)[-1],
                 scale=scale),
-            unique_arguments=chunk(chunksize / 2, cross_section_numvalues, processes, coefficient_group),
+            unique_arguments=chunk(chunksize, final_numvalues, processes, coefficient_group),
             merge_command='merge_scans',
             merge_size='2G',
-            cleanup_input=True,
+            # cleanup_input=True,
             extra_inputs=[
                 tempdir.__file__,
                 os.path.join(base, madgraph),
@@ -189,6 +199,9 @@ if 'email' in dir():
     options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email)
 else:
     options = AdvancedOptions(log_level=1, abort_multiplier=100000)
+
+units = sum([len(w.unique_arguments) for w in workflows])
+print 'will make {} units'.format(units)
 
 config = Config(
     label=str(version).replace('/', '_'),

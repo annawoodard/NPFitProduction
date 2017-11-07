@@ -148,7 +148,7 @@ for process in processes:
                 low=low,
                 high=high),
             extra_inputs=gridpack_inputs + ['{b}/process_cards/{p}.dat'.format(b=base, p=process)],
-            unique_arguments=range(numvalues * len(coefficient_group)),
+            unique_arguments=range((numvalues + 1) ** len(coefficient_group)),
             outputs=['gridpack.tar.xz']
         )
 
