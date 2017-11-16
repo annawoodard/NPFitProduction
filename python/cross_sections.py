@@ -5,12 +5,12 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempdir
 
 import numpy as np
 
 from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+
 
 class CrossSectionScan(object):
     """A container for cross section scans over Wilson coefficient values.
@@ -62,8 +62,6 @@ class CrossSectionScan(object):
                 except (RuntimeError, KeyError) as e:
                     print(e)
                     self.prune([process])
-
-
 
     def add(self, points, cross_section, process, coefficients):
         coefficients = tuple(coefficients)
@@ -152,14 +150,18 @@ class CrossSectionScan(object):
 
         For one Wilson coefficient c_1:
         M = M_0 + c_1 M_1
-        dsigma(c_1) ~ |M|^2 = s_0 + s_1 c_1 + s_2 c_1^2
+        sigma(c_1) ~ |M|^2 ~ s_0 + s_1 c_1 + s_2 c_1^2
 
         For two Wilson coefficients c_1, c_2:
         M = M_0 + c_1 M_1 + c_2 M_2
-        dsigma(c_1, c_2) ~ |M^2| = s_0 + s_1 c_1 + s_2 c_2 + s_3 c_1^2 + s_4 c_2^2 + s_5 c_1 c_2
+        sigma(c_1, c_2) ~ |M^2| ~ s_0 + s_1 c_1 + s_2 c_2 + s_3 c_1^2 + s_4 c_2^2 + s_5 c_1 c_2
 
-        And similarly for more Wilson coefficients. By solving the system of equations, we can determine
-        the constants s_i.
+        And similarly for more Wilson coefficients. For one operator, s_0, s_1, and s_2 can
+        be solved for with three calculated points; for two operators, six points are needed, etc.
+        In general 1 + 2 * d + (d - 1) * d / 2 points are needed, where d is the number of included
+        operators. In practice, overconstraining the fit with more than the minimum number of points
+        is helpful, because the MG calculation has associated errors.
+
         """
         for process, points in self.points[coefficients].items():
             if process not in self.scales[coefficients]:
@@ -172,9 +174,8 @@ class CrossSectionScan(object):
             matrix = self.model(points[train])
             scales = self.scales[coefficients][process]
             # the fit must go through the SM point, so we weight it
-            weights = np.diag([10000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
-            self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix),
-                    np.dot(scales[train], weights))
+            weights = np.diag([100000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
+            self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix), np.dot(scales[train], weights))
             if maxpoints is not None and maxpoints < len(indices):
                 test = indices[maxpoints:]
                 predicted = self.evaluate(coefficients, points[test], process)
@@ -187,10 +188,12 @@ class CrossSectionScan(object):
 
         return np.dot(matrix, self.fit_constants[coefficients][process])
 
+
 def get_maxes(scales, grid, coefficients):
     maxes = [scales[grid[:, i] > 0].max() for i in range(len(coefficients))]
     maxes += [scales[grid[:, i] < 0].max() for i in range(len(coefficients))]
     return maxes
+
 
 def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
@@ -362,7 +365,7 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
         m = re.search("Cross-section :\s*(.*) \+", output)
         os.chdir(start)
 
-        if m:
+        try:
             return float(m.group(1))
-        else:
-            sys.exit(1)
+        except TypeError:
+            raise RuntimeError('mg calculation failed')

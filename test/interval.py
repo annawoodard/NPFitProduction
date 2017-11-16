@@ -5,6 +5,7 @@ number of coeffients, and each axis spanning low < c_j < high.
 
 """
 import argparse
+import sys
 
 import numpy as np
 
@@ -40,19 +41,31 @@ print values
 print len(points)
 result = CrossSectionScan()
 
-for i in args.indices:
-    point = points[i]
-    cross_section = get_cross_section(
-        args.madgraph,
-        args.np_model,
-        args.np_param_path,
-        args.coefficients,
-        args.process_card,
-        args.cores,
-        args.events,
-        args.cards,
-        point
-    )
-    result.add(point, cross_section, process, args.coefficients)
+for attempt in range(5):
+    # Sometimes MG can fail if the Wilson coefficient values are too large.
+    # If this happens, try again a few times with smaller values.
+    try:
+        for i in args.indices:
+            point = points[i]
+            cross_section = get_cross_section(
+                args.madgraph,
+                args.np_model,
+                args.np_param_path,
+                args.coefficients,
+                args.process_card,
+                args.cores,
+                args.events,
+                args.cards,
+                point
+            )
+            result.add(point, cross_section, process, args.coefficients)
+        break
+    except RuntimeError as e:
+        print '{}: halving coefficient values and trying again'.format(e)
+        points = points / 2.
 
-result.dump('cross_sections.npz')
+if len(result.points) is 0:
+    print 'failed to calculate any points'
+    sys.exit(1)
+else:
+    result.dump('cross_sections.npz')

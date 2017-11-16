@@ -1,8 +1,6 @@
-import datetime
 import glob
 import imp
 import itertools
-import json
 import os
 import tempdir
 
@@ -31,7 +29,7 @@ events = 50000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 low = -1. * cutoff
 high = 1. * cutoff
-zooms = 2  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
+zooms = 0  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
 final_numvalues = 32  # number of values to use for final scan
 zoom_numvalues = 3  # number of values to use for each zoom scan
 interpolate_numvalues = 1000  # number of values to use for interpolating
@@ -80,16 +78,21 @@ madgraph_resources = Category(
 
 
 def chunk(size, numvalues, processes, coefficients):
+    dim = len(coefficients)
+    requiredpoints = 1. + 2. * dim + (dim - 1.) * dim / 2.
+    totalpoints = numvalues ** dim
+    if totalpoints < requiredpoints:
+        raise ValueError('need more than {} points; {}d fit requires at least {}'.format(totalpoints, dim, requiredpoints))
+    if size > totalpoints:
+        size = totalpoints
     unique_args = []
     for p in processes:
-        totalpoints = (numvalues) ** len(coefficients)
-        if size > totalpoints:
-            size = totalpoints
         for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + 1, size)):
             unique_args += ['{}.dat {}'.format(p, ' '.join([str(x) for x in np.arange(lower, higher)]))]
     unique_args = unique_args[:maxchunks]
     np.random.shuffle(unique_args)
     return unique_args
+
 
 workflows = []
 for coefficient_group in itertools.combinations(coefficients, dimension):
@@ -125,6 +128,12 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     workflows.append(zoom)
 
     for i in range(zooms):
+        # A fit to the interval scan above is used to find the range of Wilson coefficient
+        # values corresponding to `scale`. The fit may not perform well at very
+        # large Wilson coefficient values. Here we use a few iterations,
+        # each time reducing the scale. This allows the fit to 'settle down' as the
+        # target scale is approached. Multiple zooms are not usually necessary for range
+        # finding in reasonable intervals.
         zoom = Workflow(
             label='zoom_pass_{}_{}'.format(i + 1, tag),
             dataset=ParentDataset(
