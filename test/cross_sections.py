@@ -201,9 +201,9 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     )
 
 if 'email' in dir():
-    options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email)
+    options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email, bad_exit_codes=[42])
 else:
-    options = AdvancedOptions(log_level=1, abort_multiplier=100000)
+    options = AdvancedOptions(log_level=1, abort_multiplier=100000, bad_exit_codes=[42]))
 
 units = sum([len(w.unique_arguments) for w in workflows])
 print 'will make {} units'.format(units)

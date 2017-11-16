@@ -61,17 +61,21 @@ for i in args.indices:
             result.add(points[i], np.array([cross_section]), process, args.coefficients)
             print 'skipping because point {} is already calculated: {}'.format(str(i), str(points[i]))
             continue
-    cross_section = get_cross_section(
-        args.madgraph,
-        args.np_model,
-        args.np_param_path,
-        args.coefficients,
-        args.process_card,
-        args.cores,
-        args.events,
-        args.cards,
-        point
-    )
-    result.add(points[i], np.array([cross_section]), process, args.coefficients)
+    try:
+        cross_section = get_cross_section(
+            args.madgraph,
+            args.np_model,
+            args.np_param_path,
+            args.coefficients,
+            args.process_card,
+            args.cores,
+            args.events,
+            args.cards,
+            point
+        )
+        result.add(points[i], np.array([cross_section]), process, args.coefficients)
+    except RuntimeError as e:
+        print e
+        sys.exit(42)
 
 result.dump('cross_sections.npz')

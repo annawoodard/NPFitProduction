@@ -66,6 +66,6 @@ for attempt in range(5):
 
 if len(result.points) is 0:
     print 'failed to calculate any points'
-    sys.exit(1)
+    sys.exit(42)
 else:
     result.dump('cross_sections.npz')

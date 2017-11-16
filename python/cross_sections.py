@@ -366,5 +366,5 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
 
         try:
             return float(m.group(1))
-        except TypeError:
+        except (TypeError, AttributeError):
             raise RuntimeError('mg calculation failed')
