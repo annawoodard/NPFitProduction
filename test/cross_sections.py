@@ -56,10 +56,10 @@ utils.clone_cards(
 storage = StorageConfiguration(
     output=[
         "hdfs://eddie.crc.nd.edu:19000/store/user/$USER/" + version,
-        # "file:///hadoop/store/user/$USER/" + version,
         "root://deepthought.crc.nd.edu//store/user/$USER/" + version,
         "srm://T3_US_NotreDame/store/user/$USER/" + version,
         "gsiftp://T3_US_NotreDame/store/user/$USER/" + version,
+        "file:///hadoop/store/user/$USER/" + version,
         # "chirp://eddie.crc.nd.edu:9094/store/user/$USER/" + version,
     ],
     input=[
