@@ -10,12 +10,11 @@ import os
 import re
 import shutil
 import subprocess
-import tempdir
 
 import numpy as np
 
 from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan, get_points, setup_model
-from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product, TempDir
 
 parser = argparse.ArgumentParser(description='produce gridpacks')
 
@@ -58,7 +57,7 @@ else:
 point = points[args.index]
 
 start = os.getcwd()
-with tempdir.TempDir() as sandbox:
+with TempDir() as sandbox:
     os.chdir(sandbox)
 
     outdir = setup_model(

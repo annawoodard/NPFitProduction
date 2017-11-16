@@ -3,7 +3,6 @@ import glob
 import imp
 import itertools
 import os
-import tempdir
 
 import numpy as np
 
@@ -96,7 +95,6 @@ gen_resources = Category(
 )
 
 gridpack_inputs=[
-    tempdir.__file__,
     os.path.join(base, madgraph),
     os.path.join(base, np_model),
     '{}/gridpack.py'.format(base),

@@ -23,7 +23,6 @@ git clone git@github.com:annawoodard/EffectiveTTVProduction.git EffectiveTTVProd
 
 scram b -j 32
 
-pip install --user tempdir
 ) > setup.log
 
 cat <<EOF

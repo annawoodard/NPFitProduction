@@ -5,11 +5,10 @@ import os
 import re
 import shutil
 import subprocess
-import tempdir
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product, TempDir
 
 
 class CrossSectionScan(object):
@@ -356,7 +355,7 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
             The values to set the coefficients to.
     """
     start = os.getcwd()
-    with tempdir.TempDir() as sandbox:
+    with TempDir() as sandbox:
         os.chdir(sandbox)
 
         outdir = setup_model(start, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point)

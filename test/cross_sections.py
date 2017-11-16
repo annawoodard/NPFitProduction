@@ -2,7 +2,6 @@ import glob
 import imp
 import itertools
 import os
-import tempdir
 
 import numpy as np
 
@@ -117,7 +116,6 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
         merge_command='merge_scans',
         merge_size='2G',
         extra_inputs=[
-            tempdir.__file__,
             os.path.join(base, madgraph),
             os.path.join(base, np_model),
             cards,
@@ -158,7 +156,6 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             merge_size='2G',
             # cleanup_input=True,
             extra_inputs=[
-                tempdir.__file__,
                 os.path.join(base, madgraph),
                 os.path.join(base, np_model),
                 cards,
@@ -194,7 +191,6 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
             merge_size='2G',
             # cleanup_input=True,
             extra_inputs=[
-                tempdir.__file__,
                 os.path.join(base, madgraph),
                 os.path.join(base, np_model),
                 cards,

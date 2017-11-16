@@ -4,7 +4,46 @@ import os
 import re
 import shutil
 import subprocess
-import tempdir
+import tempfile
+
+
+class TempDir(object):
+    """ Class for temporary directories
+
+        Creates a (named) directory which is deleted after use.
+        All files created within the directory are destroyed.
+        Might not work on windows when the files are still opened.
+
+        Borrowed from module `tempdir` to avoid dependency issues.
+    """
+
+    def __init__(self, suffix="", prefix="tmp", basedir=None):
+        self.name = tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=basedir)
+
+    def __del__(self):
+        try:
+            if self.name:
+                self.dissolve()
+        except AttributeError:
+            pass
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, *errstuff):
+        self.dissolve()
+
+    def dissolve(self):
+        """remove all files and directories created within the tempdir"""
+        if self.name:
+            shutil.rmtree(self.name)
+        self.name = ""
+
+    def __str__(self):
+        if self.name:
+            return "temporary directory at: %s" % (self.name,)
+        else:
+            return "dissolved temporary directory"
 
 
 def cartesian_product(*arrays):
@@ -57,7 +96,7 @@ def clone_cards(
         shutil.rmtree(outdir)
     os.makedirs(outdir)
 
-    with tempdir.TempDir() as sandbox:
+    with TempDir() as sandbox:
         os.makedirs('{}/sm'.format(sandbox))
         os.makedirs('{}/np'.format(sandbox))
         subprocess.call(['tar', 'xaf', sm_gridpack, '--directory={}/sm'.format(sandbox)])
