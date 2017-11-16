@@ -60,7 +60,7 @@ class CrossSectionScan(object):
                     self.deduplicate(coefficients, process)
                 except (RuntimeError, KeyError) as e:
                     print(e)
-                    self.prune([process])
+                    self.prune(process, coefficients)
 
     def add(self, points, cross_section, process, coefficients):
         coefficients = tuple(coefficients)
@@ -114,11 +114,9 @@ class CrossSectionScan(object):
         self.scales[coefficients][process] = (cross_sections / sm_cross_section)
         self.cross_sections['sm'][process] = sm_cross_section
 
-    def prune(self, processes):
-        for coefficients, points in self.points.items():
-            self.points[coefficients] = dict((k, v) for k, v in points.items() if k in processes)
-        for coefficients, cross_sections in self.cross_sections.items():
-            self.cross_sections[coefficients] = dict((k, v) for k, v in cross_sections.items() if k in processes)
+    def prune(self, process, coefficients):
+        self.points[coefficients] = dict((k, v) for k, v in self.points[coefficients].items() if k is not process)
+        self.cross_sections[coefficients] = dict((k, v) for k, v in self.cross_sections[coefficients].items() if k is not process)
 
     def dump(self, filename):
         np.savez(
