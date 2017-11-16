@@ -53,14 +53,6 @@ class CrossSectionScan(object):
                         )
             except Exception as e:
                 print('skipping bad input file {}: {}'.format(f, e))
-        for coefficients in self.points:
-            for process in self.points[coefficients]:
-                try:
-                    self.update_scales(coefficients, process)
-                    self.deduplicate(coefficients, process)
-                except (RuntimeError, KeyError) as e:
-                    print(e)
-                    self.prune(process, coefficients)
 
     def add(self, points, cross_section, process, coefficients):
         coefficients = tuple(coefficients)
