@@ -80,3 +80,6 @@ By default [test/gen.py](test/gen.py) produces one output dataset per group of c
 
 ### Adding processing steps
 Lobster can chain together processing steps. If you want to run reco, etc on your gen samples, create a new workflow in your Lobster configuration file by copying the `gen` workflow and adjusting the `pset` and `outputs` to match the CMSSW pset that runs your subsequent step.
+
+### Analysis
+This code was used in the CMS TOP-17-005 analysis (paper submitted to JHEP.) The preprint is available [here](https://arxiv.org/abs/1711.02547) and a restricted [analysis note](http://cms.cern.ch/iCMS/jsp/db_notes/noteInfo.jsp?cmsnoteid=CMS%20AN-2017/048).  The analysis code is posted [here](http://github.com/annawoodard/EffectiveTTV).
