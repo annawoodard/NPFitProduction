@@ -9,7 +9,7 @@ import subprocess
 
 import FWCore.ParameterSet.Config as cms
 
-from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan
+from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan
 
 process = cms.Process('LHE')
 
@@ -56,7 +56,7 @@ process.externalLHEProducer = cms.EDProducer("ExternalLHEProducer",
     outputFile = cms.string('cmsgrid_final.lhe'),
     scriptName = cms.FileInPath('GeneratorInterface/LHEInterface/data/run_generic_tarball_cvmfs.sh'),
     numberOfParameters = cms.uint32(1),
-    args = cms.vstring('/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/EffectiveTTVProduction/EffectiveTTVProduction/test/gridpack.tar_62.xz')
+    args = cms.vstring('/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/NPFitProduction/NPFitProduction/test/gridpack.tar_62.xz')
 )
 
 with open('parameters.json', 'r') as f:

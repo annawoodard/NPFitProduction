@@ -9,8 +9,8 @@ import sys
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan, get_cross_section
-from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product
+from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan, get_cross_section
+from NPFitProduction.NPFitProduction.utils import cartesian_product
 
 
 parser = argparse.ArgumentParser(description='calculate cross sections')

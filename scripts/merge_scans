@@ -5,7 +5,7 @@ import glob
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan
+from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan
 
 parser = argparse.ArgumentParser(description='merge CrossSectionScan files')
 parser.add_argument('outfile', help='name of output merged file')

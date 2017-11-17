@@ -13,8 +13,8 @@ import subprocess
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.cross_sections import CrossSectionScan, get_points, setup_model
-from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product, TempDir
+from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan, get_points, setup_model
+from NPFitProduction.NPFitProduction.utils import cartesian_product, TempDir
 
 parser = argparse.ArgumentParser(description='produce gridpacks')
 

@@ -26,7 +26,7 @@ process.maxEvents = cms.untracked.PSet(
 
 process.source = cms.Source("PoolSource",
     secondaryFileNames = cms.untracked.vstring(),
-    fileNames = cms.untracked.vstring('file:/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/EffectiveTTVProduction/EffectiveTTVProduction/test/no_x_sec.root'),
+    fileNames = cms.untracked.vstring('file:/afs/crc.nd.edu/user/a/awoodard/releases/effective-ttV-production/CMSSW_7_4_7/src/NPFitProduction/NPFitProduction/test/no_x_sec.root'),
     inputCommands = cms.untracked.vstring('keep *', 
         'drop LHEXMLStringProduct_*_*_*'),
     dropDescendantsOfDroppedBranches = cms.untracked.bool(False)

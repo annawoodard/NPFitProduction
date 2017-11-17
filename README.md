@@ -2,7 +2,7 @@ This code calculates cross sections and produces events using a Madgraph model f
 ## Installation
 To install Lobster, see the [documentation](http://lobster.readthedocs.io/en/latest/). Next, set up your working directory:
 
-    curl https://raw.githubusercontent.com/annawoodard/EffectiveTTVProduction/master/setup.sh|sh -
+    curl https://raw.githubusercontent.com/annawoodard/NPFitProduction/master/setup.sh|sh -
 
 ## Quick start
 ### Scanning cross sections

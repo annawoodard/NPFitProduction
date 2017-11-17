@@ -2,7 +2,7 @@
 
 cat <<EOF
 =========================================================================
-this script creates a working directory for EffectiveTTV production
+this script creates a working directory for NPFit production
 output is in setup.log
 =========================================================================
 EOF
@@ -19,7 +19,7 @@ eval $(scramv1 runtime -sh)
 set -o xtrace
 git cms-init > /dev/null
 
-git clone git@github.com:annawoodard/EffectiveTTVProduction.git EffectiveTTVProduction/EffectiveTTVProduction
+git clone git@github.com:annawoodard/NPFitProduction.git NPFitProduction/NPFitProduction
 
 scram b -j 32
 

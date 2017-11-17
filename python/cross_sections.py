@@ -8,7 +8,7 @@ import subprocess
 
 import numpy as np
 
-from EffectiveTTVProduction.EffectiveTTVProduction.utils import cartesian_product, TempDir
+from NPFitProduction.NPFitProduction.utils import cartesian_product, TempDir
 
 
 class CrossSectionScan(object):
