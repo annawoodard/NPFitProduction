@@ -8,9 +8,11 @@ import numpy as np
 from lobster import cmssw
 from lobster.core import *
 
+# corresponds to commit 9055a1425ef6bd7c238fd9300f21a9589e6e1057
+
 # email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
-dimension = 1  # number of coefficients to change per scan
-version = 'ttV/cross_sections/2/{}d'.format(dimension)  # you should increment this each time you make changes
+dimension = 2  # number of coefficients to change per scan
+version = 'ttV/cross_sections/12/{}d'.format(dimension)  # you should increment this each time you make changes
 # coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
 coefficients = ['cuW', 'cuB', 'cH', 'tc3G', 'c3G', 'cHu', 'c2G', 'cuG']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
@@ -29,7 +31,7 @@ cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 *
 low = -1. * cutoff
 high = 1. * cutoff
 zooms = 0  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
-final_numvalues = 32  # number of values to use for final scan
+final_numvalues = 30  # number of values to use for final scan
 zoom_numvalues = 3  # number of values to use for each zoom scan
 interpolate_numvalues = 1000  # number of values to use for interpolating
 chunksize = 10
