@@ -36,9 +36,6 @@ process = args.process_card.split('/')[-1].replace('.dat', '')
 
 values = [np.hstack([np.zeros(1), np.linspace(args.low, args.high, args.numvalues - 1, endpoint=True)]) for c in args.coefficients]
 points = cartesian_product(*values)
-print points
-print values
-print len(points)
 result = CrossSectionScan()
 
 for attempt in range(5):

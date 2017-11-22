@@ -1,10 +1,45 @@
 from __future__ import print_function
+import collections
+import itertools
 import numpy as np
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+
+
+class TupleKeyDict(collections.MutableMapping):
+    """Dictionary class for which keys are always tuples
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.store = dict()
+        self.update(dict(*args, **kwargs))
+
+    def __getitem__(self, key):
+        if self.__keytransform__(key) not in self.store:
+            self.store[self.__keytransform__(key)] = dict()
+        return self.store[self.__keytransform__(key)]
+
+    def __setitem__(self, key, value):
+        self.store[self.__keytransform__(key)] = value
+
+    def __delitem__(self, key):
+        del self.store[self.__keytransform__(key)]
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+    def __keytransform__(self, key):
+        if isinstance(key, basestring):
+            key = tuple([key])
+        elif isinstance(key, list):
+            key = tuple(key)
+        return key
 
 
 class TempDir(object):
@@ -55,6 +90,8 @@ def cartesian_product(*arrays):
         arr[..., i] = a
     return arr.reshape(-1, la)
 
+def sorted_combos(items, dimension):
+    return [sorted(items) for items in itertools.combinations(items, dimension)]
 
 def clone_cards(
         sm_gridpack,

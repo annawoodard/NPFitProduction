@@ -168,7 +168,6 @@ for coefficient_group in itertools.combinations(coefficients, dimension):
     workflows.append(
         Workflow(
             label='final_pass_{}'.format(tag),
-            # dataset=Dataset(files='/afs/crc.nd.edu/user/a/awoodard/www/.private/ttV/48/cross_sections.npz'),
             dataset=ParentDataset(
                 parent=zoom,
                 units_per_task=1

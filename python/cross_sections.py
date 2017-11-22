@@ -8,7 +8,7 @@ import subprocess
 
 import numpy as np
 
-from NPFitProduction.NPFitProduction.utils import cartesian_product, TempDir
+from NPFitProduction.NPFitProduction.utils import cartesian_product, TupleKeyDict, TempDir
 
 
 class CrossSectionScan(object):
@@ -17,11 +17,11 @@ class CrossSectionScan(object):
     """
 
     def __init__(self, fn=None):
-        self.points = defaultdict(dict)
-        self.cross_sections = defaultdict(dict)
-        self.scales = defaultdict(dict)
-        self.fit_constants = defaultdict(dict)
-        self.fit_errs = defaultdict(dict)
+        self.points = TupleKeyDict()
+        self.cross_sections = TupleKeyDict()
+        self.scales = TupleKeyDict()
+        self.fit_constants = TupleKeyDict()
+        self.fit_errs = TupleKeyDict()
 
         if fn is not None:
             if isinstance(fn, list):
@@ -31,14 +31,15 @@ class CrossSectionScan(object):
 
     def load(self, fn):
         info = np.load(fn)
-        self.points = info['points'][()]
-        self.cross_sections = info['cross_sections'][()]
-        self.scales = info['scales'][()]
-        self.fit_constants = info['fit_constants'][()]
-        self.fit_errs = info['fit_errs'][()]
+        self.points = TupleKeyDict(info['points'][()])
+        self.cross_sections = TupleKeyDict(info['cross_sections'][()])
+        self.scales = TupleKeyDict(info['scales'][()])
+        self.fit_constants = TupleKeyDict(info['fit_constants'][()])
+        self.fit_errs = TupleKeyDict(info['fit_errs'][()])
 
     def loadmany(self, files):
         for f in files:
+            state = (self.points, self.cross_sections)
             try:
                 info = np.load(f)
                 points = info['points'][()]
@@ -52,10 +53,14 @@ class CrossSectionScan(object):
                             coefficients
                         )
             except Exception as e:
+                self.points = state[0]
+                self.cross_sections = state[1]
                 print('skipping bad input file {}: {}'.format(f, e))
 
     def add(self, points, cross_section, process, coefficients):
-        coefficients = tuple(coefficients)
+        argsort = sorted(range(len(coefficients)), key=lambda k: coefficients[k])
+        points = points[:, argsort]
+        coefficients = tuple(sorted(coefficients))
         if not isinstance(cross_section, np.ndarray):
             cross_section = np.array([cross_section])
         if len(points.shape) < 2:
@@ -113,11 +118,11 @@ class CrossSectionScan(object):
     def dump(self, filename):
         np.savez(
             filename,
-            points=self.points,
-            cross_sections=self.cross_sections,
-            scales=self.scales,
-            fit_constants=self.fit_constants,
-            fit_errs=self.fit_errs
+            points=dict(self.points),
+            cross_sections=dict(self.cross_sections),
+            scales=dict(self.scales),
+            fit_constants=dict(self.fit_constants),
+            fit_errs=dict(self.fit_errs)
         )
 
     def model(self, points):
@@ -131,7 +136,7 @@ class CrossSectionScan(object):
 
         return np.hstack([constant, linear, quad, mixed])
 
-    def fit(self, coefficients, maxpoints=None):
+    def fit(self, maxpoints=None):
         """Perform a fit to describe how processes are scaled as a function of Wilson coefficients
 
         The matrix element M can be expressed in terms of the SM piece M_0 and NP
@@ -152,27 +157,31 @@ class CrossSectionScan(object):
         is helpful, because the MG calculation has associated errors.
 
         """
-        for process, points in self.points[coefficients].items():
-            if process not in self.scales[coefficients]:
-                self.update_scales(coefficients, process)
-            indices = np.arange(0, len(points))
-            np.random.shuffle(indices)
-            train = indices
-            if maxpoints is not None and maxpoints < len(indices):
-                train = indices[:maxpoints]
-            matrix = self.model(points[train])
-            scales = self.scales[coefficients][process]
-            # the fit must go through the SM point, so we weight it
-            weights = np.diag([100000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
-            self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix), np.dot(scales[train], weights))
-            if maxpoints is not None and maxpoints < len(indices):
-                test = indices[maxpoints:]
-                predicted = self.evaluate(coefficients, points[test], process)
-                self.fit_errs[coefficients][process] = (scales[test] - predicted) / scales[test] * 100
+        for coefficients in self.points:
+            for process, points in self.points[coefficients].items():
+                if process not in self.scales[coefficients]:
+                    self.update_scales(coefficients, process)
+                indices = np.arange(0, len(points))
+                np.random.shuffle(indices)
+                train = indices
+                if maxpoints is not None and maxpoints < len(indices):
+                    train = indices[:maxpoints]
+                print('found {} points for {}'.format(str(len(train)), process))
+                matrix = self.model(points[train])
+                scales = self.scales[coefficients][process]
+                # the fit must go through the SM point, so we weight it
+                weights = np.diag([100000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
+                self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix), np.dot(scales[train], weights))
+                if maxpoints is not None and maxpoints < len(indices):
+                    test = indices[maxpoints:]
+                    predicted = self.evaluate(coefficients, points[test], process)
+                    self.fit_errs[coefficients][process] = (scales[test] - predicted) / scales[test] * 100
 
     def evaluate(self, coefficients, points, process):
+        if isinstance(coefficients, basestring):
+            coefficients = tuple([coefficients])
         if not self.fit_constants[coefficients]:
-            self.fit(coefficients)
+            self.fit()
         matrix = self.model(points)
 
         return np.dot(matrix, self.fit_constants[coefficients][process])
