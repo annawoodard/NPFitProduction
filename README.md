@@ -83,3 +83,9 @@ Lobster can chain together processing steps. If you want to run reco, etc on you
 
 ### Analysis
 This code was used in the CMS TOP-17-005 analysis (paper submitted to JHEP.) The preprint is available [here](https://arxiv.org/abs/1711.02547) and a restricted [analysis note](http://cms.cern.ch/iCMS/jsp/db_notes/noteInfo.jsp?cmsnoteid=CMS%20AN-2017/048).  The analysis code is posted [here](http://github.com/annawoodard/EffectiveTTV).
+
+
+### Running MG efficiently
+For calculating a single point in NP parameter space, time and core time are plotted below for a range of assigned cores. As cores are added, the time to calculate a single point falls, but the total core seconds consumed rises. If you have fewer points to calculate than cores, and you don't mind losing some efficiency, you can finish work faster by assigning more cores to each task (`cores` in [test/cross_sections.py](test/cross_sections.py)). If you have more points to calculate than cores, you should assign the lowest feasible `cores`, depending on the ratio of cores/memory/disk available where you are running (in my experience, each point requires ~2 GB memory and ~1.5 GB disk).
+
+<img src="docs/mg_time.png" width=300> <img src="docs/mg_core_time.png" width=300>
