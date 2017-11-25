@@ -2,7 +2,7 @@
     "max-workers": 1000,
     "min-workers": 0,
     "cores": 12,
-    "memory": 8500,
-    "disk": 5000,
+    "memory": 23000,
+    "disk": 24000,
     "workers-per-cycle": 10
 }

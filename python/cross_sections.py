@@ -39,10 +39,17 @@ class CrossSectionScan(object):
         self.fit_errs = TupleKeyDict(info['fit_errs'][()])
 
     def loadmany(self, files):
+        """Load a list of files
+        """
         for f in files:
             state = (self.points, self.cross_sections)
             try:
-                info = np.load(f)
+                try:
+                    info = np.load(f)
+                except IOError as e:
+                    print('will wait and then retry, got {}'.format(e))
+                    time.sleep(1)
+                    info = np.load(f)
                 points = info['points'][()]
                 cross_sections = info['cross_sections'][()]
                 for coefficients in points:
@@ -183,31 +190,14 @@ class CrossSectionScan(object):
             coefficients = tuple([coefficients])
         if not self.fit_constants[coefficients]:
             self.fit()
+        print(points.shape)
+        if len(points.shape) == 1:
+            print('len is ', len(points.shape))
+            points = points.reshape((len(points), 1))
+            print(points.shape)
         matrix = self.model(points)
 
         return np.dot(matrix, self.fit_constants[coefficients][process])
-
-
-def get_maxes(scales, grid, coefficients):
-    columns = range(len(coefficients))
-    maxes = []
-    for column in columns:
-        others = grid[:, [i for i in columns if i != column]]
-        print(others)
-        column_axis = np.where((others == np.zeros(len(coefficients))).all(axis=1))
-        axis_scales = scales[column_axis]
-        axis_points = grid[column_axis]
-        print(axis_scales)
-        maxes += [axis_scales[axis_points[:, column] > 0].max()]
-        maxes += [axis_scales[axis_points[:, column] < 0].max()]
-    return maxes
-
-def get_axis_points(coarse_grid, col, numvalues):
-    rows, cols = coarse_grid.shape
-    axis = np.zeros((numvalues, cols))
-    axis[:, col] = np.linspace(-1 * np.abs(coarse_grid[:, col]).max(), np.abs(coarse_grid[:, col]).max(), numvalues)
-
-    return axis
 
 def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
@@ -230,79 +220,81 @@ def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculat
 
     """
     values = []
-    if coefficients not in coarse_scan.points:
-        raise RuntimeError('coarse scan is missing {}'.format(coefficients))
-    coarse_scan.fit(coefficients)
+    coarse_scan.fit()
     maxes = {}
     mins = {}
     # import pdb
     # pdb.set_trace()
 
     start = time.time()
-    for process, points in coarse_scan.points[coefficients].items():
-        for column in range(len(coefficients)):
-            axis_points = get_axis_points(points, column, interpolate_numvalues)
-            scales = coarse_scan.evaluate(coefficients, axis_points, process)
+    for column, coefficient in enumerate(coefficients):
+        if coefficient not in coarse_scan.points:
+            raise RuntimeError('coarse scan is missing {}'.format(coefficient))
+        for process, points in coarse_scan.points[coefficient].items():
+            print(points)
+            points = np.array(np.linspace(points.min(), points.max(), interpolate_numvalues))
+            print(points)
+            scales = coarse_scan.evaluate(coefficient, points, process)
+            print('scales ', str(scales))
             # case 1: process is not affected by operators, try to quickly reach the endpoint
-            while scales[axis_points[:, column] > 0].max() < scale:
-                if (np.abs(axis_points).max() > (4 * np.pi) ** 2):  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
+            while scales[points > 0].max() < scale:
+                if (np.abs(points).max() > (4 * np.pi) ** 2):  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
                     break
-                axis_points[axis_points[:, column] > 0] *= 2.
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
-            while scales[axis_points[:, column] < 0].max() < scale:
-                if (np.abs(axis_points).max() > (4 * np.pi) ** 2):
+                points[points > 0] *= 2.
+                scales = coarse_scan.evaluate(coefficient, points, process)
+            while scales[points < 0].max() < scale:
+                if (np.abs(points).max() > (4 * np.pi) ** 2):
                     break
-                axis_points[axis_points[:, column] < 0] *= 2.
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
+                points[points < 0] *= 2.
+                scales = coarse_scan.evaluate(coefficient, points, process)
             print('1 process '+process)
-            print('1 grid '+str(axis_points))
+            print('1 grid '+str(points))
             print('1 scales '+str(scales))
             # case 2: we are above the endpoint, try to quickly zoom in
-            while scales[axis_points[:, column] > 0].max() > scale:
-                if (np.abs(axis_points).max()) < min_value:
+            while scales[points > 0].max() > scale:
+                if (np.abs(points).max()) < min_value:
                     raise RuntimeError('fit did not converge')
-                axis_points[axis_points[:, column] > 0] /= 2.
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
-            print('1 points ', str(axis_points))
-            print(axis_points[:, column])
-            print(scales[axis_points[:, column]<0])
-            while scales[axis_points[:, column] < 0].max() > scale:
-                if (np.abs(axis_points).max()) < min_value:
+                points[points > 0] /= 2.
+                scales = coarse_scan.evaluate(coefficient, points, process)
+            print('1 points ', str(points))
+            while scales[points < 0].max() > scale:
+                if (np.abs(points).max()) < min_value:
                     raise RuntimeError('fit did not converge')
-                print('max ', scales[axis_points[:, column]<0].max())
-                axis_points[axis_points[:, column] < 0] /= 2.
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
+                points[points < 0] /= 2.
+                scales = coarse_scan.evaluate(coefficient, points, process)
             print('2 process '+process)
-            print('2 grid '+str(axis_points))
+            print('2 grid '+str(points))
             print('2 scales '+str(scales))
             # case 3: we overshot, now slowly zoom out
-            while scales[axis_points[:, column] > 0].max() < scale:
-                if (np.abs(axis_points).max() > (4 * np.pi) ** 2):
+            while scales[points > 0].max() < scale:
+                if (np.abs(points).max() > (4 * np.pi) ** 2):
                     break
-                axis_points[axis_points[:, column] > 0] *= (1. + step)
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
-            while scales[axis_points[:, column] < 0].max() < scale:
-                if (np.abs(axis_points).max() > (4 * np.pi) ** 2):
+                points[points > 0] *= (1. + step)
+                scales = coarse_scan.evaluate(coefficient, points, process)
+            while scales[points < 0].max() < scale:
+                if (np.abs(points).max() > (4 * np.pi) ** 2):
                     break
-                axis_points[axis_points[:, column] < 0] *= (1. + step)
-                scales = coarse_scan.evaluate(coefficients, axis_points, process)
+                points[points < 0] *= (1. + step)
+                scales = coarse_scan.evaluate(coefficient, points, process)
             if column in maxes:
-                maxes[column] = min(maxes[column], axis_points.max())
-                mins[column] = max(mins[column], axis_points.min())
+                maxes[column] = min(maxes[column], points.max())
+                mins[column] = max(mins[column], points.min())
             else:
-                maxes[column] = axis_points.max()
-                mins[column] = axis_points.min()
+                maxes[column] = points.max()
+                mins[column] = points.min()
             print('column ', column)
             print('maxes ', str(maxes))
             print('mins ', str(mins))
 
-    calculate_values = [np.hstack([np.zeros(1), np.linspace(mins[i], maxes[i], calculate_numvalues - 1)]) for i in range(len(coefficients))]
+    # how it was for v15
+    # calculate_values = [np.hstack([np.zeros(1), np.linspace(mins[i], maxes[i], calculate_numvalues - 1)]) for i in range(len(coefficients))]
+    calculate_values = [np.linspace(mins[i], maxes[i], calculate_numvalues) for i in range(len(coefficients))]
 
-    grid = cartesian_product(*calculate_values)
-    scales = coarse_scan.evaluate(coefficients, grid, process)
-    print('got points in {:.1f} seconds'.format(time.time() - start))
+    # grid = cartesian_product(*calculate_values)
+    print('got values in {:.1f} seconds'.format(time.time() - start))
 
-    return cartesian_product(*calculate_values)
+    # we must always include the SM point (`np.zeros(len(coefficients))`) in order to calculate the scaling
+    return np.vstack([cartesian_product(*calculate_values), np.zeros(len(coefficients))])
 
 
 def setup_model(base, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
