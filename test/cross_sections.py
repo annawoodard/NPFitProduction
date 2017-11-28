@@ -9,7 +9,7 @@ from lobster.core import *
 
 # email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
 dimension = 2  # number of coefficients to change per scan
-version = 'ttV/cross_sections/15/{}d'.format(dimension)  # you should increment this each time you make changes
+version = 'ttV/cross_sections/18/{}d'.format(dimension)  # you should increment this each time you make changes
 # coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
 coefficients = ['cuW', 'cuB', 'cH', 'tc3G', 'c3G', 'cHu', 'c2G', 'cuG']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
@@ -27,11 +27,10 @@ events = 50000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 low = -1. * cutoff
 high = 1. * cutoff
-zooms = 0  # number of iterations to make for zooming in on the wilson coefficient range corresponding to NP / SM < scale
-final_numvalues = 30  # number of values to use for final scan
-zoom_numvalues = 5  # number of values to use for each zoom scan
-interpolate_numvalues = 1000  # number of values to use for interpolating
-chunksize = 2
+scale_numvalues = 30  # number of values to use for scale scan
+interval_numvalues = 10  # number of values to use for interval scan
+interpolate_numvalues = 1000  # number of values to use for interpolating during range finding
+chunksize = 5
 maxchunks = 1000
 
 base = os.path.dirname(os.path.abspath(__file__))
@@ -67,8 +66,16 @@ storage = StorageConfiguration(
     disable_input_streaming=True
 )
 
-madgraph_resources = Category(
-    name='madgraph',
+interval_resources = Category(
+    name='interval',
+    mode='min_waste',
+    cores=cores,
+    memory=2500,
+    disk=1500
+)
+
+scale_resources = Category(
+    name='scale',
     mode='min_waste',
     cores=cores,
     memory=2500,
@@ -89,20 +96,21 @@ def chunk(size, numvalues, processes, coefficients, dim=1):
             unique_args = []
             for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + 1, size)):
                 unique_args += ['{} {}.dat {}'.format(','.join(coefficient_group), p, ' '.join([str(x) for x in np.arange(lower, higher)]))]
-            np.random.shuffle(unique_args)
+                if higher < totalpoints:
+                    unique_args += ['{} {}.dat {}'.format(','.join(coefficient_group), p, ' '.join([str(x) for x in np.arange(higher, totalpoints)]))]
+            np.random.shuffle(unique_args[1:])  # the first entry contains the SM point-- make sure we do not truncate it
             unique_args = unique_args[:maxchunks]
             res += unique_args
     return res
 
 
-workflows = []
-zoom = Workflow(
-    label='interval_pass',
+interval = Workflow(
+    label='interval',
     dataset=EmptyDataset(),
-    category=madgraph_resources,
+    category=interval_resources,
     sandbox=cmssw.Sandbox(release=release),
     command='python interval.py {nv} {cores} {events} {mg} {model} {pp} {cards} {low} {high}'.format(
-        nv=zoom_numvalues,
+        nv=interval_numvalues,
         cores=cores,
         events=events,
         mg=madgraph,
@@ -111,7 +119,7 @@ zoom = Workflow(
         cards=os.path.split(cards)[-1],
         low=low,
         high=high),
-    unique_arguments=chunk(chunksize, zoom_numvalues, constraints, coefficients),
+    unique_arguments=chunk(chunksize, interval_numvalues, constraints, coefficients),
     merge_command='merge_scans',
     merge_size='2G',
     extra_inputs=[
@@ -122,60 +130,18 @@ zoom = Workflow(
     ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in constraints],
     outputs=['cross_sections.npz']
 )
-workflows.append(zoom)
 
-for i in range(zooms):
-    # A fit to the interval scan above is used to find the range of Wilson coefficient
-    # values corresponding to `scale`. The fit may not perform well at very
-    # large Wilson coefficient values. Here we use a few iterations,
-    # each time reducing the scale. This allows the fit to 'settle down' as the
-    # target scale is approached. Zooms are not usually necessary for range
-    # finding in reasonable intervals.
-    zoom = Workflow(
-        label='zoom_pass_{}'.format(i + 1),
+scale = Workflow(
+        label='scale',
         dataset=ParentDataset(
-            parent=zoom,
+            parent=interval,
             units_per_task=1
         ),
-        category=madgraph_resources,
-        sandbox=cmssw.Sandbox(release=release),
-        command='python scale.py {iv} {cv} {cores} {events} {mg} {model} {pp} {cards} {scale}'.format(
-            iv=interpolate_numvalues,
-            cv=zoom_numvalues,
-            cores=cores,
-            events=events,
-            mg=madgraph,
-            model=np_model,
-            pp=np_param_path,
-            cards=os.path.split(cards)[-1],
-            scale=scale * (zooms + 1 - i)),
-        unique_arguments=chunk(chunksize, zoom_numvalues, constraints, coefficients),
-        merge_command='merge_scans',
-        merge_size='2G',
-        merge_maxinputs=50,
-        # cleanup_input=True,
-        extra_inputs=[
-            os.path.join(base, madgraph),
-            os.path.join(base, np_model),
-            cards,
-            '{}/scale.py'.format(base)
-        ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in constraints],
-        outputs=['cross_sections.npz']
-    )
-    workflows.append(zoom)
-
-workflows.append(
-    Workflow(
-        label='final_pass',
-        dataset=ParentDataset(
-            parent=zoom,
-            units_per_task=1
-        ),
-        category=madgraph_resources,
+        category=scale_resources,
         sandbox=cmssw.Sandbox(release=release),
         command='python scale.py {ip} {cv} {cores} {events} {mg} {model} {pp} {cards} {scale}'.format(
             ip=interpolate_numvalues,
-            cv=final_numvalues,
+            cv=scale_numvalues,
             cores=cores,
             events=events,
             mg=madgraph,
@@ -183,7 +149,7 @@ workflows.append(
             pp=np_param_path,
             cards=os.path.split(cards)[-1],
             scale=scale),
-        unique_arguments=chunk(chunksize, final_numvalues, processes, coefficients, dimension),
+        unique_arguments=chunk(chunksize, scale_numvalues, processes, coefficients, dimension),
         merge_command='merge_scans',
         merge_size='2G',
         merge_maxinputs=50,
@@ -196,14 +162,13 @@ workflows.append(
         ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in processes],
         outputs=['cross_sections.npz']
     )
-)
 
 if 'email' in dir():
     options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email, bad_exit_codes=[42])
 else:
     options = AdvancedOptions(log_level=1, abort_multiplier=100000, bad_exit_codes=[42])
 
-units = sum([len(w.unique_arguments) for w in workflows])
+units = sum([len(w.unique_arguments) for w in [interval, scale]])
 print 'will make {} units'.format(units)
 
 config = Config(
@@ -211,6 +176,6 @@ config = Config(
     workdir='/tmpscratch/users/$USER/' + version,
     plotdir='~/www/lobster/' + version,
     storage=storage,
-    workflows=workflows,
+    workflows=[interval, scale],
     advanced=options
 )

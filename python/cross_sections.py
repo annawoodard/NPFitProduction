@@ -1,11 +1,11 @@
 from __future__ import print_function
-import collections
 import itertools
 import os
 import re
 import shutil
 import subprocess
 import time
+import glob
 
 import numpy as np
 
@@ -41,15 +41,11 @@ class CrossSectionScan(object):
     def loadmany(self, files):
         """Load a list of files
         """
+        files = sum([glob.glob(f) for f in files], [])
         for f in files:
             state = (self.points, self.cross_sections)
             try:
-                try:
-                    info = np.load(f)
-                except IOError as e:
-                    print('will wait and then retry, got {}'.format(e))
-                    time.sleep(1)
-                    info = np.load(f)
+                info = np.load(f)
                 points = info['points'][()]
                 cross_sections = info['cross_sections'][()]
                 for coefficients in points:
@@ -178,7 +174,9 @@ class CrossSectionScan(object):
                 matrix = self.model(points[train])
                 scales = self.scales[coefficients][process]
                 # the fit must go through the SM point, so we weight it
-                weights = np.diag([100000 if (x[0] == 1. and np.all(x[1:]) == 0.) else 1 for x in matrix])
+                rows, cols = matrix.shape
+                sm = np.array([1.] + [0.] * (cols - 1))
+                weights = np.diag([1000 if np.all(row == sm) else 1 for row in matrix])
                 self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix), np.dot(scales[train], weights))
                 if maxpoints is not None and maxpoints < len(indices):
                     test = indices[maxpoints:]
@@ -190,14 +188,12 @@ class CrossSectionScan(object):
             coefficients = tuple([coefficients])
         if not self.fit_constants[coefficients]:
             self.fit()
-        print(points.shape)
         if len(points.shape) == 1:
-            print('len is ', len(points.shape))
             points = points.reshape((len(points), 1))
-            print(points.shape)
         matrix = self.model(points)
 
         return np.dot(matrix, self.fit_constants[coefficients][process])
+
 
 def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
@@ -219,7 +215,7 @@ def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculat
             Change the range this much per iteration while searching for the desired range.
 
     """
-    values = []
+
     coarse_scan.fit()
     maxes = {}
     mins = {}
@@ -231,11 +227,8 @@ def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculat
         if coefficient not in coarse_scan.points:
             raise RuntimeError('coarse scan is missing {}'.format(coefficient))
         for process, points in coarse_scan.points[coefficient].items():
-            print(points)
             points = np.array(np.linspace(points.min(), points.max(), interpolate_numvalues))
-            print(points)
             scales = coarse_scan.evaluate(coefficient, points, process)
-            print('scales ', str(scales))
             # case 1: process is not affected by operators, try to quickly reach the endpoint
             while scales[points > 0].max() < scale:
                 if (np.abs(points).max() > (4 * np.pi) ** 2):  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
@@ -247,24 +240,17 @@ def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculat
                     break
                 points[points < 0] *= 2.
                 scales = coarse_scan.evaluate(coefficient, points, process)
-            print('1 process '+process)
-            print('1 grid '+str(points))
-            print('1 scales '+str(scales))
-            # case 2: we are above the endpoint, try to quickly zoom in
+            # case 2: we are way above the target scale, try to quickly zoom in
             while scales[points > 0].max() > scale:
                 if (np.abs(points).max()) < min_value:
                     raise RuntimeError('fit did not converge')
                 points[points > 0] /= 2.
                 scales = coarse_scan.evaluate(coefficient, points, process)
-            print('1 points ', str(points))
             while scales[points < 0].max() > scale:
                 if (np.abs(points).max()) < min_value:
                     raise RuntimeError('fit did not converge')
                 points[points < 0] /= 2.
                 scales = coarse_scan.evaluate(coefficient, points, process)
-            print('2 process '+process)
-            print('2 grid '+str(points))
-            print('2 scales '+str(scales))
             # case 3: we overshot, now slowly zoom out
             while scales[points > 0].max() < scale:
                 if (np.abs(points).max() > (4 * np.pi) ** 2):
@@ -282,19 +268,12 @@ def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculat
             else:
                 maxes[column] = points.max()
                 mins[column] = points.min()
-            print('column ', column)
-            print('maxes ', str(maxes))
-            print('mins ', str(mins))
 
-    # how it was for v15
-    # calculate_values = [np.hstack([np.zeros(1), np.linspace(mins[i], maxes[i], calculate_numvalues - 1)]) for i in range(len(coefficients))]
     calculate_values = [np.linspace(mins[i], maxes[i], calculate_numvalues) for i in range(len(coefficients))]
-
-    # grid = cartesian_product(*calculate_values)
-    print('got values in {:.1f} seconds'.format(time.time() - start))
+    print('got values for {} in {:.1f} seconds'.format(str(coefficients), time.time() - start))
 
     # we must always include the SM point (`np.zeros(len(coefficients))`) in order to calculate the scaling
-    return np.vstack([cartesian_product(*calculate_values), np.zeros(len(coefficients))])
+    return np.vstack([np.zeros(len(coefficients)), cartesian_product(*calculate_values)])
 
 
 def setup_model(base, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
