@@ -20,7 +20,7 @@ class CrossSectionScan(object):
     def __init__(self, fn=None):
         self.points = TupleKeyDict()
         self.cross_sections = TupleKeyDict()
-        self.scales = TupleKeyDict()
+        self._scales = TupleKeyDict()
         self.fit_constants = TupleKeyDict()
         self.fit_errs = TupleKeyDict()
 
@@ -34,7 +34,7 @@ class CrossSectionScan(object):
         info = np.load(fn)
         self.points = TupleKeyDict(info['points'][()])
         self.cross_sections = TupleKeyDict(info['cross_sections'][()])
-        self.scales = TupleKeyDict(info['scales'][()])
+        self._scales = TupleKeyDict(info['scales'][()])
         self.fit_constants = TupleKeyDict(info['fit_constants'][()])
         self.fit_errs = TupleKeyDict(info['fit_errs'][()])
 
@@ -104,16 +104,21 @@ class CrossSectionScan(object):
         self.cross_sections[coefficients][process] = averages
         self.points[coefficients][process] = self.points[coefficients][process][sort][mask]
 
-    def update_scales(self, coefficients, process):
-        sm = np.array([0] * len(coefficients))  # SM point has all coefficients set to 0
-        points = self.points[coefficients][process]
-        cross_sections = self.cross_sections[coefficients][process]
-        sm_indices = np.where((points == sm).all(axis=1))[0]
-        if len(sm_indices) == 0:
-            raise RuntimeError('scan does not contain the SM point for coefficients {} and process {}'.format(coefficients, process))
-        sm_cross_section = np.mean(cross_sections[sm_indices])
-        self.scales[coefficients][process] = (cross_sections / sm_cross_section)
-        self.cross_sections['sm'][process] = sm_cross_section
+    @property
+    def scales(self):
+        for coefficients in self.points:
+            for process, points in self.points[coefficients].items():
+                if process not in self._scales[coefficients]:
+                    sm = np.array([0] * len(coefficients))  # SM point has all coefficients set to 0
+                    cross_sections = self.cross_sections[coefficients][process]
+                    sm_indices = np.where((points == sm).all(axis=1))[0]
+                    if len(sm_indices) == 0:
+                        raise RuntimeError('scan does not contain the SM point for coefficients {} and process {}'.format(coefficients, process))
+                    sm_cross_section = np.mean(cross_sections[sm_indices])
+                    self._scales[coefficients][process] = (cross_sections / sm_cross_section)
+                    self.cross_sections['sm'][process] = sm_cross_section
+
+        return self._scales
 
     def prune(self, process, coefficients):
         self.points[coefficients] = dict((k, v) for k, v in self.points[coefficients].items() if k is not process)
@@ -124,7 +129,7 @@ class CrossSectionScan(object):
             filename,
             points=dict(self.points),
             cross_sections=dict(self.cross_sections),
-            scales=dict(self.scales),
+            scales=dict(self._scales),
             fit_constants=dict(self.fit_constants),
             fit_errs=dict(self.fit_errs)
         )
@@ -163,8 +168,6 @@ class CrossSectionScan(object):
         """
         for coefficients in self.points:
             for process, points in self.points[coefficients].items():
-                if process not in self.scales[coefficients]:
-                    self.update_scales(coefficients, process)
                 indices = np.arange(0, len(points))
                 np.random.shuffle(indices)
                 train = indices
@@ -194,6 +197,56 @@ class CrossSectionScan(object):
 
         return np.dot(matrix, self.fit_constants[coefficients][process])
 
+    def dataframe(self, coefficients, evaluate_points=None):
+        try:
+            import pandas as pd
+        except AttributeError as e:
+            raise(e)
+        processes = self.points[coefficients].keys()
+        columns = list(coefficients) + processes
+        if evaluate_points is None:
+            df = pd.DataFrame(columns=list(coefficients) + processes)
+            for process, points in self.points[coefficients].items():
+                data = dict((coefficient, points[:, column]) for column, coefficient in enumerate(coefficients))
+                data[process] = self.scales[coefficients][process]
+                df = df.merge(pd.DataFrame(data), 'outer')
+        else:
+            df = pd.DataFrame(columns=list(coefficients) + ['{} fit'.format(p) for p in processes])
+            for process in processes:
+                scales = self.evaluate(coefficients, evaluate_points, process)
+                data = dict((coefficient, evaluate_points[:, column]) for column, coefficient in enumerate(coefficients))
+                data[process] = scales
+                df = df.merge(pd.DataFrame(data), 'outer')
+
+        return df
+
+
+def get_edge_points(column, mins, maxes, edge, coefficients, num):
+    values = []
+    for j in range(len(coefficients)):
+        if column != j:
+            values += [np.linspace(mins[j], maxes[j], num)]
+        else:
+            values += [np.array([edge])]
+
+    return cartesian_product(*values)
+
+def get_perimeter(mins, maxes, coefficients, numvalues):
+    res = None
+    for i in range(len(coefficients)):
+        if res is not None:
+            res = np.vstack([
+                res,
+                get_edge_points(i, mins, maxes, maxes[i], coefficients, numvalues),
+                get_edge_points(i, mins, maxes, mins[i], coefficients, numvalues)
+            ])
+        else:
+            res = np.vstack([
+                get_edge_points(i, mins, maxes, maxes[i], coefficients, numvalues),
+                get_edge_points(i, mins, maxes, mins[i], coefficients, numvalues)
+            ])
+
+    return res
 
 def get_points(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
