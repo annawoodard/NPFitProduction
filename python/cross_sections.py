@@ -174,17 +174,21 @@ class CrossSectionScan(object):
                 if maxpoints is not None and maxpoints < len(indices):
                     train = indices[:maxpoints]
                 print('found {} points for {}'.format(str(len(train)), process))
-                matrix = self.model(points[train])
+                A = self.model(points[train])
                 scales = self.scales[coefficients][process]
                 # the fit must go through the SM point, so we weight it
-                rows, cols = matrix.shape
+                rows, cols = A.shape
                 sm = np.array([1.] + [0.] * (cols - 1))
-                weights = np.diag([1000 if np.all(row == sm) else 1 for row in matrix])
-                self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, matrix), np.dot(scales[train], weights))
+                weights = np.diag([1000 if np.all(row == sm) else 1 for row in A])
+                # let the NP scaling per point be represented by B
+                # and the fit constants we want by X;
+                # this solves AX = B by computing the X which minimizes ||B - AX||^2
+                self.fit_constants[coefficients][process], _, _, _ = np.linalg.lstsq(np.dot(weights, A), np.dot(scales[train], weights))
                 if maxpoints is not None and maxpoints < len(indices):
                     test = indices[maxpoints:]
                     predicted = self.evaluate(coefficients, points[test], process)
                     self.fit_errs[coefficients][process] = (scales[test] - predicted) / scales[test] * 100
+
 
     def evaluate(self, coefficients, points, process):
         if isinstance(coefficients, basestring):
@@ -193,9 +197,9 @@ class CrossSectionScan(object):
             self.fit()
         if len(points.shape) == 1:
             points = points.reshape((len(points), 1))
-        matrix = self.model(points)
+        A = self.model(points)
 
-        return np.dot(matrix, self.fit_constants[coefficients][process])
+        return np.dot(A, self.fit_constants[coefficients][process])
 
     def dataframe(self, coefficients, evaluate_points=None):
         try:
