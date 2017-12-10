@@ -151,8 +151,8 @@ scale = Workflow(
             scale=scale),
         unique_arguments=chunk(chunksize, scale_numvalues, processes, coefficients, dimension),
         merge_command='merge_scans',
-        merge_size='2G',
-        merge_maxinputs=50,
+        merge_size='500k',
+        # merge_maxinputs=50,
         # cleanup_input=True,
         extra_inputs=[
             os.path.join(base, madgraph),

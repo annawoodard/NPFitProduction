@@ -91,7 +91,7 @@ def cartesian_product(*arrays):
     return arr.reshape(-1, la)
 
 def sorted_combos(items, dimension):
-    return [tuple(sorted(items)) for items in itertools.combinations(items, dimension)]
+    return sorted([tuple(sorted(items)) for items in itertools.combinations(items, dimension)])
 
 def clone_cards(
         sm_gridpack,
