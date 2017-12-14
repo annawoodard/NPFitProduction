@@ -43,11 +43,28 @@ args = parser.parse_args()
 
 args.coefficients = args.coefficients.split(',')
 process = args.process_card.split('/')[-1].replace('.dat', '')
+totalpoints = args.numvalues ** len(args.coefficients) + 1
 
 if args.scan and args.scale and args.constraints:
     coarse_scan = CrossSectionScan([args.scan.replace('file:', '')])
     coarse_scan.prune(args.constraints)
     points = get_points(args.coefficients, coarse_scan, args.scale, args.numvalues)
+    try:
+        mins, maxes = get_bounds(args.coefficients, coarse_scan, args.scale, args.interpolate_numvalues)
+    except RuntimeError:
+        raise
+
+    try:
+        points = None
+        for column, coefficient in enumerate(args.coefficients):
+            column = np.vstack([np.zeros(1), np.random.uniform(mins[column], maxes[column], (totalpoints, 1))])
+            if points is None:
+                points = column
+            else:
+                points = np.hstack([points, column])
+    except RuntimeError as e:
+        print e
+        sys.exit(42)
 elif args.low and args.high:
     values = [np.hstack([np.zeros(1), np.linspace(args.low, args.high, args.numvalues)]) for c in args.coefficients]
     points = cartesian_product(*values)

@@ -3,7 +3,7 @@ import sys
 
 import numpy as np
 
-from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan, get_cross_section, get_points
+from NPFitProduction.NPFitProduction.cross_sections import CrossSectionScan, get_cross_section, get_bounds
 from NPFitProduction.NPFitProduction.utils import cartesian_product
 
 parser = argparse.ArgumentParser(description='calculate cross sections')
@@ -32,53 +32,33 @@ coarse_scan = CrossSectionScan([args.scan.replace('file:', '')])
 result = CrossSectionScan()
 
 try:
-    points = get_points(args.coefficients, coarse_scan, args.scale, args.interpolate_numvalues, args.calculate_numvalues)
+    mins, maxes = get_bounds(args.coefficients, coarse_scan, args.scale, args.interpolate_numvalues)
 except RuntimeError:
     raise
-    # # Something is wrong with the fit; zoom in and hope we do better next time
-    # ranges = None
-    # for process, points in coarse_scan.points[args.coefficients].items():
-    #     endpoint = np.array([np.abs(points[:, i]).max() / 2. for i in range(len(args.coefficients))])
-    #     if ranges is None:
-    #         ranges = endpoint
-    #     else:
-    #         ranges = np.amin(np.vstack([endpoint, ranges]), axis=0)
-    # values = [np.hstack([np.zeros(1), np.linspace(-1. * ranges[i], ranges[i], args.calculate_numvalues - 1)]) for i in range(len(args.coefficients))]
-    # points = cartesian_product(*values)
-    # print 'ranges ', ranges
-    # print 'values ', values
 
-# coarse_points = coarse_scan.points[args.coefficients]
-# print 'points ', points
-# print 'points shape ', points.shape
-
-for i in args.indices:
-    print 'index ', i
-    print 'row ', points[i]
-    # point = points[i]
-    # if process in coarse_points:
-    #     common = np.where((coarse_points[process] == point).all(axis=1))[0]
-    #     if len(common) > 0:
-    #         #  we are already zoomed in, no need to calculate again
-    #         cross_section = coarse_scan.cross_sections[args.coefficients][process][common[0]]
-    #         result.add(points[i], np.array([cross_section]), process, args.coefficients)
-    #         print 'skipping because point {} is already calculated: {}'.format(str(i), str(points[i]))
-    #         continue
-    try:
-        cross_section = get_cross_section(
-            args.madgraph,
-            args.np_model,
-            args.np_param_path,
-            args.coefficients,
-            args.process_card,
-            args.cores,
-            args.events,
-            args.cards,
-            points[i]
-        )
-        result.add(points[i], np.array([cross_section]), process, args.coefficients)
-    except RuntimeError as e:
-        print e
-        sys.exit(42)
+for i, value in enumerate(args.indices):
+    if value == 0:
+        # we must always include the SM point in order to calculate the scaling
+        point = [0.0] * len(args.coefficients)
+    else:
+        try:
+            point = []
+            for column, coefficient in enumerate(args.coefficients):
+                point += [np.random.uniform(mins[column], maxes[column])]
+            cross_section = get_cross_section(
+                args.madgraph,
+                args.np_model,
+                args.np_param_path,
+                args.coefficients,
+                args.process_card,
+                args.cores,
+                args.events,
+                args.cards,
+                point
+            )
+            result.add(point, np.array([cross_section]), process, args.coefficients)
+        except RuntimeError as e:
+            print e
+            sys.exit(42)
 
 result.dump('cross_sections.npz')

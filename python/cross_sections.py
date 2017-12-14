@@ -298,7 +298,7 @@ def get_perimeter(mins, maxes, coefficients, numvalues):
 
     return res
 
-def get_bounds(coefficients, coarse_scan, scale, interpolate_numvalues, calculate_numvalues, step=0.2, min_value=1e-11):
+def get_bounds(coefficients, coarse_scan, scale, interpolate_numvalues, step=0.2, min_value=1e-11):
     """Return a grid of points with dimensionality
     equal to the number of coefficients, and each axis spanning the
     minimum and maximum c_j for which NP / SM < scale, for any of the

@@ -91,17 +91,21 @@ def chunk(size, numvalues, processes, coefficients, dim=1):
     if size > totalpoints:
         size = totalpoints
     res = []
+    sm = []
     for coefficient_group in utils.sorted_combos(coefficients, dim):
         for p in processes:
             unique_args = []
             for lower, higher in zip(np.arange(0, totalpoints, size), np.arange(size, totalpoints + 1, size)):
                 unique_args += ['{} {}.dat {}'.format(','.join(coefficient_group), p, ' '.join([str(x) for x in np.arange(lower, higher)]))]
-                if higher < totalpoints:
-                    unique_args += ['{} {}.dat {}'.format(','.join(coefficient_group), p, ' '.join([str(x) for x in np.arange(higher, totalpoints)]))]
-            np.random.shuffle(unique_args[1:])  # the first entry contains the SM point-- make sure we do not truncate it
+            sm += [unique_args.pop(0)]  # the first entry contains the SM point-- make sure we do not truncate it
+            if higher < totalpoints:
+                unique_args += ['{} {}.dat {}'.format(','.join(coefficient_group), p, ' '.join([str(x) for x in np.arange(higher, totalpoints)]))]
+            np.random.shuffle(unique_args)
             unique_args = unique_args[:maxchunks]
             res += unique_args
-    return res
+    np.random.shuffle(res)
+
+    return sm + res
 
 
 interval = Workflow(
@@ -151,7 +155,7 @@ scale = Workflow(
             scale=scale),
         unique_arguments=chunk(chunksize, scale_numvalues, processes, coefficients, dimension),
         merge_command='merge_scans',
-        merge_size='500k',
+        merge_size='2G',
         # merge_maxinputs=50,
         # cleanup_input=True,
         extra_inputs=[
