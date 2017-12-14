@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import time
 import glob
+import xml.etree.ElementTree as ET
 
 import numpy as np
 import scipy
@@ -322,8 +323,6 @@ def get_bounds(coefficients, coarse_scan, scale, interpolate_numvalues, step=0.2
     coarse_scan.fit()
     maxes = {}
     mins = {}
-    # import pdb
-    # pdb.set_trace()
 
     start = time.time()
     for column, coefficient in enumerate(coefficients):
@@ -482,3 +481,55 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
             return float(m.group(1))
         except (TypeError, AttributeError):
             raise RuntimeError('mg calculation failed')
+
+def get_coefficient_ids(param_card, coefficients):
+    coefficient_ids = {}
+    with open(param_card, 'r') as f:
+        for line in f.readlines():
+            if 'Block' in line:
+                current_block = line.split()[-1].strip()
+            m = re.search('(\d*) [\d.]* # (\S*)', line)
+            if m:
+                id, coef = m.groups()
+                if coef in coefficients:
+                    model_block = current_block
+                    coefficient_ids[coef] = id
+    return coefficient_ids, model_block
+
+def write_reweight_card(param_card, reweight_card, numpoints, coefficients, scan, scale):
+    """Write a reweight card for Madgraph
+
+    This should be good-to-go for multidimensions
+    """
+    mins, maxes = get_bounds(coefficients, scan, scale, 1000)
+    coefficient_ids, model_block = get_coefficient_ids(param_card, coefficients)
+
+    with open(reweight_card, 'w') as f:
+        for _ in range(numpoints):
+            f.write('launch\n')
+            for column, coef in enumerate(coefficients):
+                coef_value = np.random.uniform(mins[column], maxes[column])
+                f.write('set {} {} {:.2f}\n'.format(model_block, coefficient_ids[coef], coef_value))
+
+def parse_lhe_weights(lhe):
+    """Parse weights from LHE file
+
+    Only implemented for one dimension/first event so far!
+    This needs to be modified to parse the weights for multidimensions
+    and all of the events!
+    """
+    tree = ET.parse(lhe)
+    root = tree.getroot()
+    points = []
+    for weight in root.iter('weight'):
+        # need to loop here over all coefficients; this proof-of-concept
+        # is only one-dimension
+        points += [float(weight.text.split()[4])]
+    points = np.array(points).reshape(len(points), 1)
+    event = root[2] # this is only the first event, you need to iterate over all of them
+
+    weights = [float(wgt.text) for wgt in event.iter('wgt')]
+    weights = np.array(weights).reshape(len(weights), 1)
+
+    return points, weights
+
