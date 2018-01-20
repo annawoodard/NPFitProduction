@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import tabulate
 import time
 import glob
 import xml.etree.ElementTree as ET
@@ -145,14 +146,50 @@ class CrossSectionScan(object):
         if () not in self.fit_constants[process].keys():
             self.fit()
         res = self.fit_constants[process][()]
+
         for linear in coefficients:
-            res = np.concatenate([res, self.fit_constants[process][(linear,)]])
+            constant = self.fit_constants[process][(linear,)]
+            res = np.concatenate([res, constant])
         for quad in coefficients:
-            res = np.concatenate([res, self.fit_constants[process][(quad, quad)]])
+            constant = self.fit_constants[process][(quad, quad)]
+            res = np.concatenate([res, constant])
         for mixed in pairs:
-            res = np.concatenate([res, self.fit_constants[process][(coefficients[mixed[0]], coefficients[mixed[1]])]])
+            try:
+                constant = self.fit_constants[process][(coefficients[mixed[0]], coefficients[mixed[1]])]
+            except KeyError:
+                constant = self.fit_constants[process][(coefficients[mixed[1]], coefficients[mixed[0]])]
+            res = np.concatenate([res, constant])
 
         return res
+
+    def dump_constants(self, process, coefficients, labels=None, conversion=None, precision=10):
+        # from IPython.core import debugger
+        # debugger.Pdb().set_trace()
+        pairs = sorted(list(itertools.combinations(range(0, len(coefficients)), 2)))
+        if labels is None:
+            labels = dict((c, c) for c in coefficients)
+        if conversion is None:
+            conversion = dict((c, 1.) for c in coefficients)
+
+        table = []
+        constants = self.construct(process, coefficients)
+        row = ['1.0']
+        for i in coefficients:
+            constant = self.fit_constants[process][(i,)]
+            row += ['\\num{{{1:.{0}e}}}'.format(precision, (constant / conversion[i])[0])]
+        table.append(row)
+        for i in coefficients:
+            row = [labels[i]]
+            for j in coefficients:
+                try:
+                    constant = self.fit_constants[process][(i, j)]
+                    row += ['\\num{{{1:.{0}e}}}'.format(precision, (constant / conversion[i] / conversion[j])[0])]
+                except KeyError:
+                    row += ['-']
+                    # constant = self.fit_constants[process][(j, i)]
+            table.append(row)
+
+        print(tabulate.tabulate(table, headers=[''] + [labels[i] for i in coefficients], tablefmt="latex_raw"))
 
 
     def fit(self, maxpoints=None, dimensions=None):
