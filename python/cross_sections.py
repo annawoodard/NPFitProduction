@@ -479,6 +479,40 @@ def setup_model(base, madgraph, np_model, np_param_path, coefficients, process_c
     return outdir
 
 
+def setup_sandbox(madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point, sandbox):
+    """
+    Update the Wilson coefficient value, run Madgraph, and return the calculated
+    cross section.
+
+    Parameters
+    ----------
+        madgraph : str
+            Tarball containing madgraph.
+        np_model : str
+            Tarball containing NP model
+        np_param_path : str
+            Path (relative to the unpacked madgraph tarball) to the NP parameter card.
+        coefficients : tuple of str
+            Coefficients to scan.
+        cores : int
+            Number of cores to use.
+        events : int
+            Number of events to use for cross section calculation.
+        cards : str
+            Path to the cards directory (must contain run_card.dat, grid_card.dat, me5_configuration.txt
+            and the parameter card pointed to by np_param_path).
+        point : np.ndarray
+            The values to set the coefficients to.
+    """
+    start = os.getcwd()
+    os.makedirs(sandbox)
+
+    os.chdir(sandbox)
+
+    outdir = setup_model(start, madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point)
+    print('sandbox is ', sandbox)
+    print('outdir is ', outdir)
+
 def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_card, cores, events, cards, point):
     """
     Update the Wilson coefficient value, run Madgraph, and return the calculated
@@ -513,24 +547,27 @@ def get_cross_section(madgraph, np_model, np_param_path, coefficients, process_c
         output = subprocess.check_output(['./{}/bin/generate_events'.format(outdir), '-f'])
         m = re.search("Cross-section :\s*(.*) \+", output)
         os.chdir(start)
+        print(output)
 
+        time.sleep(1000000000000)
         try:
             return float(m.group(1))
         except (TypeError, AttributeError):
             raise RuntimeError('mg calculation failed')
 
-def get_coefficient_ids(param_card, coefficients):
+def get_coefficient_ids(lines, coefficients):
     coefficient_ids = {}
-    with open(param_card, 'r') as f:
-        for line in f.readlines():
-            if 'Block' in line:
-                current_block = line.split()[-1].strip()
-            m = re.search('(\d*) [\d.]* # (\S*)', line)
-            if m:
-                id, coef = m.groups()
-                if coef in coefficients:
-                    model_block = current_block
-                    coefficient_ids[coef] = id
+    for line in lines:
+        if 'Block' in line:
+            current_block = line.split()[-1].strip()
+        m = re.search('(\d*) [\d.e\-\+]* # (\S*)', line)
+        print(line)
+        if m:
+            print(m.groups())
+            id, coef = m.groups()
+            if coef in coefficients:
+                model_block = current_block
+                coefficient_ids[coef] = id
     return coefficient_ids, model_block
 
 def write_reweight_card(param_card, reweight_card, numpoints, coefficients, scan, scale):
@@ -539,34 +576,51 @@ def write_reweight_card(param_card, reweight_card, numpoints, coefficients, scan
     This should be good-to-go for multidimensions
     """
     mins, maxes = get_bounds(coefficients, scan, scale, 1000)
-    coefficient_ids, model_block = get_coefficient_ids(param_card, coefficients)
+    print('mins ', mins, ' maxes ', maxes)
+    with open(param_card, 'r') as f:
+        coefficient_ids, model_block = get_coefficient_ids(f.readlines(), coefficients)
+    print('ids ', coefficient_ids)
 
     with open(reweight_card, 'w') as f:
+        f.write('launch\n')
+        # for column, coef in enumerate(coefficients):
+        #     # make sure we always include the SM point
+        #     f.write('set {} {} {:.6f}\n'.format(model_block, coefficient_ids[coef], 0.0))
         for _ in range(numpoints):
             f.write('launch\n')
             for column, coef in enumerate(coefficients):
                 coef_value = np.random.uniform(mins[column], maxes[column])
-                f.write('set {} {} {:.2f}\n'.format(model_block, coefficient_ids[coef], coef_value))
+                f.write('set {} {} {:.6f}\n'.format(model_block, coefficient_ids[coef], coef_value))
 
-def parse_lhe_weights(lhe):
+def parse_lhe_weights(lhe, coefficients):
     """Parse weights from LHE file
 
-    Only implemented for one dimension/first event so far!
+    Only implemented for one dimension so far!
     This needs to be modified to parse the weights for multidimensions
     and all of the events!
     """
+    print('parsing {}'.format(lhe))
+
     tree = ET.parse(lhe)
     root = tree.getroot()
     points = []
-    for weight in root.iter('weight'):
-        # need to loop here over all coefficients; this proof-of-concept
-        # is only one-dimension
-        points += [float(weight.text.split()[4])]
-    points = np.array(points).reshape(len(points), 1)
-    event = root[2] # this is only the first event, you need to iterate over all of them
+    slha = list(root.iter('slha'))[0]
+    coefficient_ids, model_block = get_coefficient_ids(slha.text.splitlines(), coefficients)
+    num_points = len(list(root.iter('weight')))
+    points = np.zeros((num_points, len(coefficients)))
+    for i, weight in enumerate(root.iter('weight')):
+        values = dict(re.findall('param_card {} (\d*) ([\d.e\-\+]*)'.format(model_block), weight.text))
+        for j, c in enumerate(coefficients):
+            points[i][j] = values[coefficient_ids[c]]
 
-    weights = [float(wgt.text) for wgt in event.iter('wgt')]
-    weights = np.array(weights).reshape(len(weights), 1)
+    num_events = len(root[2:])
+
+    print('will process {} points in {} events'.format(num_points, num_events))
+    weights = np.zeros((num_events, num_points))
+    for i, event in enumerate(root[2:]):
+        weights[i] = np.array([float(wgt.text) for wgt in event.iter('wgt')])
+        if i % 1000 == 0:
+            print('completed {} / {} events'.format(i, num_events))
 
     return points, weights
 
