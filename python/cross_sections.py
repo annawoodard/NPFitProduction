@@ -561,9 +561,7 @@ def get_coefficient_ids(lines, coefficients):
         if 'Block' in line:
             current_block = line.split()[-1].strip()
         m = re.search('(\d*) [\d.e\-\+]* # (\S*)', line)
-        print(line)
         if m:
-            print(m.groups())
             id, coef = m.groups()
             if coef in coefficients:
                 model_block = current_block
@@ -595,9 +593,14 @@ def write_reweight_card(param_card, reweight_card, numpoints, coefficients, scan
 def parse_lhe_weights(lhe, coefficients):
     """Parse weights from LHE file
 
-    Only implemented for one dimension so far!
-    This needs to be modified to parse the weights for multidimensions
-    and all of the events!
+    Returns
+    -------
+    numpy.ndarray
+        Array of weights, where each row corresponds to an event
+        and each column corresponds to a point
+    numpy.ndarray
+        Array of points, where each row corresponds to a point and
+        each column corresponds to a coefficient
     """
     print('parsing {}'.format(lhe))
 
@@ -614,12 +617,11 @@ def parse_lhe_weights(lhe, coefficients):
             points[i][j] = values[coefficient_ids[c]]
 
     num_events = len(root[2:])
-
     print('will process {} points in {} events'.format(num_points, num_events))
     weights = np.zeros((num_events, num_points))
     for i, event in enumerate(root[2:]):
         weights[i] = np.array([float(wgt.text) for wgt in event.iter('wgt')])
-        if i % 1000 == 0:
+        if i % 10000 == 0:
             print('completed {} / {} events'.format(i, num_events))
 
     return points, weights
