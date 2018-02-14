@@ -35,7 +35,7 @@ class TupleKeyDict(collections.MutableMapping):
         return len(self.store)
 
     def __keytransform__(self, key):
-        if isinstance(key, basestring):
+        if isinstance(key, str):
             key = tuple([key])
         elif isinstance(key, list):
             key = tuple(key)

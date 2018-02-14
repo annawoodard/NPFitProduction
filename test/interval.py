@@ -44,7 +44,7 @@ for attempt in range(5):
     try:
         for i in args.indices:
             point = points[i]
-            cross_section = get_cross_section(
+            cross_section, err = get_cross_section(
                 args.madgraph,
                 args.np_model,
                 args.np_param_path,
@@ -55,7 +55,7 @@ for attempt in range(5):
                 args.cards,
                 point
             )
-            result.add(point, cross_section, process, args.coefficients)
+            result.add(point, cross_section, err, process, args.coefficients)
         break
     except RuntimeError as e:
         print '{}: halving coefficient values and trying again'.format(e)

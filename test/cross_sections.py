@@ -8,13 +8,14 @@ from lobster import cmssw
 from lobster.core import *
 
 # email = 'changeme@changeme.edu'  # uncomment to have notification sent here when processing completes
-dimension = 2  # number of coefficients to change per scan
-version = 'ttV/cross_sections/18/{}d'.format(dimension)  # you should increment this each time you make changes
+dimension = 8  # number of coefficients to change per scan
+version = 'ttV/cross_sections/30/{}d'.format(dimension)  # you should increment this each time you make changes
 # coefficients = ['c2B', 'c2G', 'c2W', 'c3G', 'c3W', 'c6', 'cA', 'cB', 'cG', 'cH', 'cHB', 'cHL', 'cHQ', 'cHW', 'cHd', 'cHe', 'cHu', 'cHud', 'cT', 'cWW', 'cd', 'cdB', 'cdG', 'cdW', 'cl', 'clB', 'clW', 'cpHL', 'cpHQ', 'cu', 'cuB', 'cuG', 'cuW', 'tc3G', 'tc3W', 'tcA', 'tcG', 'tcHB', 'tcHW']
+coefficients = ['cuW', 'cuB', 'tc3G', 'c3G', 'cHu', 'c2G', 'cuG']
 coefficients = ['cuW', 'cuB', 'cH', 'tc3G', 'c3G', 'cHu', 'c2G', 'cuG']
 processes = [x.replace('process_cards/', '').replace('.dat', '') for x in glob.glob('process_cards/*.dat')]
 constraints = ['ttZ', 'ttH', 'ttW']  # these processes are used to constrain the left and right scan bounds
-scale = 10  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
+scale = 30  # min and max scan bounds set according to NP / SM < scale for any of the constraint processes
 sm_gridpack = '/cvmfs/cms.cern.ch/phys_generator/gridpacks/slc6_amd64_gcc481/13TeV/madgraph/V5_2.3.2.2/ttZ01j_5f_MLM/v1/ttZ01j_5f_MLM_tarball.tar.xz'  # SM gridpack to clone
 lhapdf = '/cvmfs/cms.cern.ch/slc6_amd64_gcc530/external/lhapdf/6.1.6/share/LHAPDF/../../bin/lhapdf-config'
 madgraph = 'MG5_aMC_v2_3_3.tar.gz'  # madgraph tarball
@@ -23,13 +24,12 @@ np_param_path = 'HEL_UFO/restrict_no_b_mass.dat'  # path (relative to the unpack
 sm_param_path = 'mgbasedir/models/sm/restrict_no_b_mass.dat'  # path (relative to the unpacked SM gridpack) to the SM parameter card
 sm_card_path = 'process/madevent/Cards'  # path (relative to the unpacked SM gridpack) to the SM card directory
 cores = 2
-events = 50000
+events = 100000
 cutoff = (4 * np.pi) ** 2  # convergence of the loop expansion requires c < (4 * pi)^2, see section 7 https://arxiv.org/pdf/1205.4231.pdf
 low = -1. * cutoff
 high = 1. * cutoff
-scale_numvalues = 30  # number of values to use for scale scan
+scale_numvalues = 25  # number of values to use for scale scan
 interval_numvalues = 10  # number of values to use for interval scan
-interpolate_numvalues = 1000  # number of values to use for interpolating during range finding
 chunksize = 5
 maxchunks = 1000
 
@@ -61,7 +61,8 @@ storage = StorageConfiguration(
         # "chirp://eddie.crc.nd.edu:9094/store/user/$USER/" + version,
     ],
     input=[
-        "root://deepthought.crc.nd.edu//store/user/$USER/{}/".format(version),
+        # "root://deepthought.crc.nd.edu//store/user/$USER/{}/".format(version),
+        "root://deepthought.crc.nd.edu//store/user/$USER/{}/".format('ttV/cross_sections/25'),
     ],
     disable_input_streaming=True
 )
@@ -137,14 +138,15 @@ interval = Workflow(
 
 scale = Workflow(
         label='scale',
-        dataset=ParentDataset(
-            parent=interval,
-            units_per_task=1
-        ),
+        dataset=Dataset('all/all.npz'),
+        # dataset=Dataset('interval/merged.npz'),
+        # dataset=ParentDataset(
+        #     parent=interval,
+        #     units_per_task=1
+        # ),
         category=scale_resources,
         sandbox=cmssw.Sandbox(release=release),
-        command='python scale.py {ip} {cv} {cores} {events} {mg} {model} {pp} {cards} {scale}'.format(
-            ip=interpolate_numvalues,
+        command='python scale.py {cv} {cores} {events} {mg} {model} {pp} {cards} {scale}'.format(
             cv=scale_numvalues,
             cores=cores,
             events=events,
@@ -162,7 +164,8 @@ scale = Workflow(
             os.path.join(base, madgraph),
             os.path.join(base, np_model),
             cards,
-            '{}/scale.py'.format(base)
+            '{}/scale.py'.format(base),
+            '/afs/crc.nd.edu/user/a/awoodard/.local/lib/python2.7/site-packages/tabulate.py'
         ] + ['{b}/process_cards/{p}.dat'.format(b=base, p=p) for p in processes],
         outputs=['cross_sections.npz']
     )
@@ -170,7 +173,7 @@ scale = Workflow(
 if 'email' in dir():
     options = AdvancedOptions(log_level=1, abort_multiplier=100000, email=email, bad_exit_codes=[42])
 else:
-    options = AdvancedOptions(log_level=1, abort_multiplier=100000, bad_exit_codes=[42])
+    options = AdvancedOptions(log_level=1, abort_multiplier=100000, bad_exit_codes=[42], dashboard=False)
 
 units = sum([len(w.unique_arguments) for w in [interval, scale]])
 print 'will make {} units'.format(units)
@@ -180,6 +183,7 @@ config = Config(
     workdir='/tmpscratch/users/$USER/' + version,
     plotdir='~/www/lobster/' + version,
     storage=storage,
-    workflows=[interval, scale],
+    # workflows=[interval, scale],
+    workflows=[scale],
     advanced=options
 )
