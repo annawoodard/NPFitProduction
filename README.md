@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/73214261.svg)](https://zenodo.org/badge/latestdoi/73214261)
+
 This code calculates cross sections and produces events using a Madgraph model file describing the new physics (NP), scanning the requested phase space of Wilson coefficients. Multidimensional scans (changing multiple coefficients per scan) is supported. Currently only the [Higgs Effective Lagrangian](https://arxiv.org/abs/1310.5150) model is implemented. The code relies on [Lobster](https://github.com/matz-e/lobster) for workflow management. In the following instructions a general familiarity with Madgraph and Lobster is assumed-- see the [Madgraph documentation](https://cp3.irmp.ucl.ac.be/projects/madgraph/wiki/ManualAndHelp) and [Lobster documentation](http://lobster.readthedocs.io/en/latest/).
 ## Installation
 To install Lobster, see the [documentation](http://lobster.readthedocs.io/en/latest/). Next, set up your working directory:
